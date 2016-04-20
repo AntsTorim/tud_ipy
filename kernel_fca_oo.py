@@ -177,6 +177,67 @@ class FCASystemDF(KernelSystemDF):
             return result
                 
 
+class ConceptChain(list):
+    """
+    A chain of concepts
+    """
+    
+    def __init__(self, objectseq, ks):
+        """
+        ks is a kernel system
+        objectseq is either a minusframe or a sequence of index labels for data
+        """
+        # If objectseq is minusframe-like then turn it into a sequence of index labels
+        try:
+            objectseq = list(objectseq.sort('i', ascending=False).index)
+        except:
+            pass
+        self.seq = objectseq
+        
+        # Generate concepts
+        extent = set()
+        intent = set(ks.data.columns)
+        for obj in objectseq:
+            # calculate {object}'
+            obj_intent = set(ks.intent([obj]))
+            # if it does not contain the whole intent:
+            if len(intent - obj_intent) > 0:
+                # add previous concept to list
+                if len(extent) > 0:
+                    self.append((extent, intent))
+                    
+                # generate the next concept:  extent = extent union {object}, intent = [intent intersection {object}']
+                extent = extent  | {obj}
+                intent = intent & obj_intent
+            # else add object to extent
+            else:
+                extent.add(obj)
+        # if final concept has non-zero intent then add it
+        if len(intent) > 0:
+            self.append((extent, intent))
+            
+        
+    def extent_labels(self):
+        prev_ext = set()
+        result = []
+        for ext, _ in self:
+            result.append(ext - prev_ext)
+            prev_ext = ext
+        return result
+
+        
+    def intent_labels(self):
+        prev_int = set()
+        result = []
+        for _, int in reversed(self):
+            result.insert(0, int - prev_int) # should it be reversed?
+            prev_int = int
+        return  result
+            
+        
+           
+        
+        
         
 if __name__ == "__main__":
     """
@@ -212,6 +273,11 @@ if __name__ == "__main__":
     print(ks.removed(e, i))
     mf = ks.minusframe()
     print(mf)
+    #cca = ConceptChain(mf, ks)
+    cca = ConceptChain(['ii', 'i', 'iv'], ks)
+    print(cca.seq)
+    print(cca)
+    print(cca.extent_labels(), cca.intent_labels())
     k = ks.kernel()
     print("Kernel:", k)
     cc = ks.conceptcover()
