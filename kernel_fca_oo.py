@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 
 
-
 class KernelSystemNP:
     
     
@@ -232,7 +231,26 @@ class ConceptChain(list):
         for _, int in reversed(self):
             result.insert(0, int - prev_int) # should it be reversed?
             prev_int = int
-        return  result
+        return result
+        
+    def concept_areas(self):
+        return [len(e) * len(i) for e, i in self]
+        
+    def local_maxima(self):
+        """
+        Returns indices of concepts with locally maximal areas in the chain
+        """
+        result = []
+        areas = self.concept_areas()
+        if areas[0] > areas[1]:
+            result.append(0)
+        if areas[-1] > areas[-2]:
+            result.append(-1)
+        for i in range(1, len(self)-1):
+            if areas[i-1] < areas[i] > areas[i+1]:
+                result.append(i)
+        return result
+            
             
         
            
@@ -277,7 +295,7 @@ if __name__ == "__main__":
     cca = ConceptChain(['ii', 'i', 'iv'], ks)
     print(cca.seq)
     print(cca)
-    print(cca.extent_labels(), cca.intent_labels())
+    print(cca.extent_labels(), cca.intent_labels(), cca.concept_areas())
     k = ks.kernel()
     print("Kernel:", k)
     cc = ks.conceptcover()
@@ -298,11 +316,17 @@ if __name__ == "__main__":
                    [1, 1, 0, 0, 0, 0, 0],
                    [1, 1, 1, 0, 0, 0, 0]])
     ks = KernelSystemNP(bin_slr)
-    cc = ks.conceptcover()
     for e, i in cc: print(e, i)
     print("-------------------")
     ks = KernelSystemNP(np.transpose(bin_slr))
     cc_t = ks.conceptcover()
     for i, e in cc_t: print(e, i)
+    
+    k_big = FCASystemDF(pd.DataFrame(bin_slr))   
+    cca = ConceptChain(k_big.minusframe(), k_big)
+    print(cca.extent_labels(), cca.concept_areas())
+    print(cca.local_maxima())
+        
+        
     
     
