@@ -155,7 +155,7 @@ class FCASystemDF(KernelSystemDF):
 
         def __init__(self, data):
             self.data = data
-            self.factory =FCASystemDF
+            self.factory = FCASystemDF
             
         def kernel(self): 
             """
@@ -175,6 +175,30 @@ class FCASystemDF(KernelSystemDF):
                     result = current_e
             return result
                 
+        def conceptchaincover(self, uncovered=0.1):
+            """
+            Returns a set of concept chains covering the data.
+  
+            Uncovered is a ratio of 1-s that can be left uncovered.
+            """
+            arr = self.datacopy()
+            old_sum = arr_sum = self.totalsum(arr)
+            result = []
+            while True:
+                ks = self.factory(arr)
+                mf = ks.minusframe()
+                cc = ConceptChain(mf, self)
+                result.append(cc)
+                for e, i in cc:
+                    arr = ks.removed(e, i)
+                    ks = self.factory(arr)
+                new_sum = self.totalsum(arr)
+                if (old_sum == new_sum) or (new_sum/arr_sum < uncovered): 
+                   # print("Total uncovered: ", self.totalsum(arr), "/", arr_sum)
+                    break
+                old_sum = new_sum
+            return result
+
 
 class ConceptChain(list):
     """
@@ -244,16 +268,15 @@ class ConceptChain(list):
         areas = self.concept_areas()
         if areas[0] > areas[1]:
             result.append(0)
-        if areas[-1] > areas[-2]:
-            result.append(-1)
+        if areas[-1] >= areas[-2]:
+            result.append(len(self)-1)
         for i in range(1, len(self)-1):
-            if areas[i-1] < areas[i] > areas[i+1]:
+            if areas[i-1] <= areas[i] > areas[i+1]:
                 result.append(i)
         return result
             
             
-        
-           
+          
         
         
         
@@ -326,6 +349,10 @@ if __name__ == "__main__":
     cca = ConceptChain(k_big.minusframe(), k_big)
     print(cca.extent_labels(), cca.concept_areas())
     print(cca.local_maxima())
+    ccc = k_big.conceptchaincover()
+    for c in ccc:
+        #print(c)
+        print(c.intent_labels(), c.concept_areas(), c.local_maxima())
         
         
     
