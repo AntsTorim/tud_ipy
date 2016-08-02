@@ -55,11 +55,21 @@ class KernelSystemNP:
         return mf[mf['i'] >= max_i].index
     
     def intent(self, extent):
-        bin_int = np.prod(self.data[extent], axis=0)
+        extent = np.array(list(extent)) # transform
+        if len(extent) > 0:
+            subdata = self.data[extent]
+        else: # empty extent
+            return list(range(self.data.shape[1]))
+        bin_int = np.prod(subdata, axis=0)
         return [i for i, b in enumerate(bin_int) if b==1]
     
     def extent(self, intent):
-        bin_ext = np.prod(self.data[:, intent], axis=1)
+        intent = np.array(list(intent)) # transform
+        if len(intent) > 0:
+            subdata = self.data[:, intent]
+        else: # empty intent
+            return list(range(self.data.shape[0]))
+        bin_ext = np.prod(subdata, axis=1)
         return [i for i, b in enumerate(bin_ext) if b==1]
     
     def removed(self, extent, intent):
@@ -117,11 +127,21 @@ class KernelSystemDF(KernelSystemNP):
         self.factory =KernelSystemDF
     
     def intent(self, extent):
-        bin_int = np.prod(self.data.loc[extent], axis=0).astype(bool) # .loc
+        if len(extent) > 0:
+            subdata = self.data.loc[extent]
+        else: # empty extent
+            return list(self.data.columns)
+        bin_int = np.prod(subdata, axis=0).astype(bool) # .loc
+        #bin_int = np.prod(self.data.loc[extent], axis=0).astype(bool) # .loc
         return list(self.data.columns[bin_int]) # ?
     
     def extent(self, intent):
-        bin_ext = np.prod(self.data.loc[:, intent], axis=1).astype(bool) # .loc
+        if len(intent) > 0:
+            subdata = self.data.loc[:, intent]
+        else: # empty extent
+           # return list(range(self.data.shape[0]))
+            return list(self.data.index)
+        bin_ext = np.prod(subdata, axis=1).astype(bool) # .loc
         return list(self.data.index[bin_ext])
                 
     def datarow(self, i):
@@ -177,28 +197,38 @@ class FCASystemDF(KernelSystemDF):
                 
         def conceptchaincover(self, uncovered=0.1):
             """
-            Returns a set of concept chains covering the data.
+            Returns a set of concept chains covering the data and a list of 
+            corresponding ratios of data table left uncovered.
   
             Uncovered is a ratio of 1-s that can be left uncovered.
             """
             arr = self.datacopy()
             old_sum = arr_sum = self.totalsum(arr)
             result = []
+            uncovered_list = []
             while True:
                 ks = self.factory(arr)
-                mf = ks.minusframe()
-                cc = ConceptChain(mf, self)
+                cc = ks.get_conceptchain()
                 result.append(cc)
                 for e, i in cc:
-                    arr = ks.removed(e, i)
                     ks = self.factory(arr)
+                    arr = ks.removed(e, i)
                 new_sum = self.totalsum(arr)
+                uncovered_list.append(new_sum/arr_sum)
                 if (old_sum == new_sum) or (new_sum/arr_sum < uncovered): 
                    # print("Total uncovered: ", self.totalsum(arr), "/", arr_sum)
                     break
                 old_sum = new_sum
-            return result
+            return result, uncovered_list
 
+        def get_conceptchain(self):
+            """
+            Get the best conceptchain.  Here we use minus technique.
+            """
+            mf = self.minusframe()
+            cc = ConceptChain(mf, self)
+            return cc
+            
 
 class ConceptChain(list):
     """
@@ -259,27 +289,139 @@ class ConceptChain(list):
         
     def concept_areas(self):
         return [len(e) * len(i) for e, i in self]
-        
+    
+    def area(self):
+        """ Total area for the chain """
+        checked_rows = 0
+        result = 0
+        for e, i in self:
+            result += len(i) * (len(e) - checked_rows)
+            checked_rows = len(e)
+        return result
+    
     def local_maxima(self):
         """
         Returns indices of concepts with locally maximal areas in the chain
         """
         result = []
         areas = self.concept_areas()
-        if areas[0] > areas[1]:
+        if len(self) == 0:
+            return []
+        elif len(self) == 1:
+            return [0]
+        elif areas[0] > areas[1]:
             result.append(0)
-        if areas[-1] >= areas[-2]:
-            result.append(len(self)-1)
         for i in range(1, len(self)-1):
             if areas[i-1] <= areas[i] > areas[i+1]:
                 result.append(i)
+        if areas[-1] >= areas[-2]:
+            result.append(len(self)-1)
         return result
+
+
+class ConceptChainFromRec(ConceptChain):
+
+    def __init__(self, bottomrec):
+        activerec = bottomrec
+        while activerec != None:
+            self.append((activerec.extent, activerec.intent))
+            activerec = activerec.prev
+
+
+
+class FCAPathSystemDF(FCASystemDF):
+
+
+    def __init__(self, data):
+        self.data = data
+        self.factory = FCASystemDF
+   
+   
+    def get_conceptchain(self):
+        """
+        Get the best conceptchain.  Here we use Dijkstras algorithm.
+        """
+        # Initialize top (start) and bottom (target) concepts
+        top = self.conceptrec([])
+        bottom = self.conceptrec(self.data.columns)
+        
+        # Initialize the concept dict (intent: extent, distance, previous, visited
+        concepts = {top.intent: top}
+        
+        # Initialize top-level concept as current
+        current = top
+        
+        while True:
+            attributes = set(self.data.columns) - current.intent
+            checked_concepts = []
+            # For each attribute\concept neighbouring current:
+            for attr in attributes:
+                # Generate the concept
+                ca = self.conceptrec(current.intent | {attr})
+
+                # If it has been checked, then continue to next attr
+                if ca.intent in checked_concepts:
+                    continue
+                checked_concepts.append(ca.intent)
+
+                # If it is not visited 
+                if not (ca.intent in concepts and concepts[ca.intent].visited):
+                    # Calculate its distance to current & start
+                    dist = current.dist + self.conceptdist(current, ca)
+                    # If concept in dict and new distance is smaller than distance in dict
+                    if ca.intent in concepts and (dist < concepts[ca.intent].dist):
+                        # Update dict with new data
+                        concepts[ca.intent].dist = dist
+                        concepts[ca.intent].prev = current
+                    elif not ca.intent in concepts:
+                        # add data to dict
+                        ca.dist = dist
+                        ca.prev = current
+                        concepts[ca.intent] = ca
             
-            
-          
+            current.visited = True            
+            # Select active concept with minimum distance as current
+            current = min([c for c in concepts.values() if not c.visited], 
+                          key=lambda c: c.dist)
+            # If current is bottom:
+            if current.intent == bottom.intent:
+                c = current
+                while c != None:
+                    print("current", c.extent)
+                    c = c.prev
+                # generate conceptchain and return it
+                return ConceptChainFromRec(current)
+
+                 
+
+
+    def conceptrec(self, protointent):
+        extent = self.extent(protointent)
+        intent = self.intent(extent)
+        return ConceptRec(intent, extent)
+
+
+    def conceptdist(self, c1, c2):
+        """ 
+        'Distance' from concept c1 to concept c2. c2 should be below c1.
+        Distance is |c2.intent - c1.intent| * |data| - |c2.extent|
+        """
+        assert c2.extent <= c1.extent
+        return len(c2.intent - c1.intent) * (len(self.data) - len(c2.extent)) 
+
         
+class ConceptRec:
+
+    def __init__(self, intent, extent, dist=0, prev=None, visited=False):
+        self.intent = frozenset(intent)
+        self.extent = frozenset(extent)
+        self.dist = dist
+        self.prev = prev
+        self.visited = visited
         
-        
+    def __repr__(self): return str(tuple(self.intent))
+
+
 if __name__ == "__main__":
     """
     mf = minusframe(data)
@@ -314,6 +456,7 @@ if __name__ == "__main__":
     print(ks.removed(e, i))
     mf = ks.minusframe()
     print(mf)
+    #for row in mf.index: print(mf.loc[row])
     #cca = ConceptChain(mf, ks)
     cca = ConceptChain(['ii', 'i', 'iv'], ks)
     print(cca.seq)
@@ -348,12 +491,28 @@ if __name__ == "__main__":
     k_big = FCASystemDF(pd.DataFrame(bin_slr))   
     cca = ConceptChain(k_big.minusframe(), k_big)
     print(cca.extent_labels(), cca.concept_areas())
+    print('Chain area: ', cca.area())
     print(cca.local_maxima())
-    ccc = k_big.conceptchaincover()
-    for c in ccc:
+    ccc, uc = k_big.conceptchaincover()
+    for c, u in zip(ccc, uc):
         #print(c)
         print(c.intent_labels(), c.concept_areas(), c.local_maxima())
+        print(u)
         
-        
+    print("\nTest Path System\n")
+    for System in FCAPathSystemDF, FCASystemDF:
+        ps = System(df)
+        print(ps.intent([]))
+        #print(list(df.index))
+        #cr = ps.conceptrec([])
+        #print(cr.intent, cr.extent)
+        cc = ps.get_conceptchain()
+        print(cc)
+        print(cc.concept_areas())
+        ccc, uc = ps.conceptchaincover()
+        for c, u in zip(ccc, uc):
+            print(c.intent_labels(), c.concept_areas(), c.local_maxima())
+            print(u)
+
     
     
