@@ -422,7 +422,8 @@ class ConceptRec:
     def __repr__(self): return str(tuple(self.intent))
 
 
-if __name__ == "__main__":
+
+def main():
     """
     mf = minusframe(data)
     #mf.loc[mf['w'] > 4, 'w'] = 99
@@ -513,6 +514,26 @@ if __name__ == "__main__":
         for c, u in zip(ccc, uc):
             print(c.intent_labels(), c.concept_areas(), c.local_maxima())
             print(u)
+
+
+def simple_main():
+     andmed = np.array([[1, 0, 1], [0, 0, 1]])
+     andmed = pd.DataFrame(andmed) # Teeme DataFrameks
+     katte_systeem = FCAPathSystemDF(andmed) # Dijkstra algoritmi pohine
+     #katte_systeem = FCASystemDF(andmed) # Monotoonsets syst miinustehnika pohine
+     kate = katte_systeem.conceptchaincover()
+     print(kate)
+     # Jalutame katte elemendid ykshaaval labi
+     ahelate_list, katamata_protsendi_list = kate
+     for ahel in ahelate_list:
+         for kontsept in ahel:
+             ekstent, intent = kontsept
+             print("Ekstent:", ekstent)
+             print("Intent:", intent)
+     
+
+if __name__ == "__main__":
+    simple_main()
 
     
     
