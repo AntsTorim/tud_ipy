@@ -387,7 +387,7 @@ class FCAPathSystemDF(FCASystemDF):
             if current.intent == bottom.intent:
                 c = current
                 while c != None:
-                    print("current", c.extent)
+                    #print("current", c.extent)
                     c = c.prev
                 # generate conceptchain and return it
                 return ConceptChainFromRec(current)
@@ -502,18 +502,20 @@ def main():
         
     print("\nTest Path System\n")
     for System in FCAPathSystemDF, FCASystemDF:
+        print("\nSystem ", System)
         ps = System(df)
-        print(ps.intent([]))
+        print("Intent ", ps.intent([]))
         #print(list(df.index))
         #cr = ps.conceptrec([])
         #print(cr.intent, cr.extent)
         cc = ps.get_conceptchain()
-        print(cc)
-        print(cc.concept_areas())
+        print("Chain ",  cc)
+        print("Chain areas ",  cc.concept_areas())
         ccc, uc = ps.conceptchaincover()
+        print("CC cover (intent, areas, maxima):")
         for c, u in zip(ccc, uc):
             print(c.intent_labels(), c.concept_areas(), c.local_maxima())
-            print(u)
+            print("Uncovered", u)
 
 
 def simple_main():
