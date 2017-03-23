@@ -337,20 +337,16 @@ class FCAPathSystemDF(FCASystemDF):
         self.factory = FCASystemDF
    
    
-    def get_conceptchain(self):
+    def dijkstra_gen(self, top):
         """
-        Get the best conceptchain.  Here we use Dijkstras algorithm.
+        Yield concepts where shortest path has been found
         """
-        # Initialize top (start) and bottom (target) concepts
-        top = self.conceptrec([])
-        bottom = self.conceptrec(self.data.columns)
-        
         # Initialize the concept dict (intent: extent, distance, previous, visited
         concepts = {top.intent: top}
-        
+
         # Initialize top-level concept as current
         current = top
-        
+
         while True:
             attributes = set(self.data.columns) - current.intent
             checked_concepts = []
@@ -381,15 +377,25 @@ class FCAPathSystemDF(FCASystemDF):
             
             current.visited = True            
             # Select active concept with minimum distance as current
-            current = min([c for c in concepts.values() if not c.visited], 
-                          key=lambda c: c.dist)
+            candidates = [c for c in concepts.values() if not c.visited]
+            if len(candidates)>0:
+                current = min(candidates, key=lambda c: c.dist)
+                yield current
+            else:
+                raise StopIteration
+       
+       
+   
+    def get_conceptchain(self):
+        """
+        Get the best conceptchain.  Here we use Dijkstras algorithm.
+        """
+        # Initialize top (start) and bottom (target) concepts
+        top = self.conceptrec([])
+        bottom = self.conceptrec(self.data.columns)
+        for current in self.dijkstra_gen(top):
             # If current is bottom:
             if current.intent == bottom.intent:
-                c = current
-                while c != None:
-                    #print("current", c.extent)
-                    c = c.prev
-                # generate conceptchain and return it
                 return ConceptChainFromRec(current)
 
                  
@@ -535,7 +541,8 @@ def simple_main():
      
 
 if __name__ == "__main__":
-    simple_main()
+    #simple_main()
+    main()
 
     
     
