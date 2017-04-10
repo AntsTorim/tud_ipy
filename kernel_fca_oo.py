@@ -409,11 +409,13 @@ class FCAPathSystemDF(FCASystemDF):
 
     def conceptdist(self, c1, c2):
         """ 
-        'Distance' from concept c1 to concept c2. c2 should be below c1.
-        Distance is |c2.intent - c1.intent| * |data| - |c2.extent|
+        'Distance' (not correct mathematical distance metric) from 
+        concept c1 to concept c2. c2 should be below c1.
+        Distance is |c2.intent - c1.intent| * (|data| - |c2.extent|)
         """
         assert c2.extent <= c1.extent
-        return len(c2.intent - c1.intent) * (len(self.data) - len(c2.extent)) 
+        return len(c2.intent - c1.intent) * (len(self.data) - len(c2.extent))
+
 
         
 class ConceptRec:
@@ -427,6 +429,23 @@ class ConceptRec:
         
     def __repr__(self): return str(tuple(self.intent))
 
+
+
+class FCAPathSystem2Way(FCAPathSystemDF):
+    
+    def conceptdist(self, c1, c2):
+        """
+        Symmetrical distance function (top to bottom, bottom to top).
+        Sum of distances is the area of data table not covered by the concept chain.
+        Middle square between c1 and c2 has weight 1 and two projections have weight 1/2.
+        """
+        if c2.extent > c1.extent:
+            c1, c2 = c2, c1
+        de = len(c1.extent-c2.extent)
+        di = len(c2.intent-c1.intent)
+        lg, lm = self.data.shape
+        weight = (di * de) + (de * (lm - len(c2.intent)) / 2) + (di * (lg - len(c1.extent)) / 2)
+        return weight
 
 
 def main():
@@ -507,7 +526,7 @@ def main():
         print(u)
         
     print("\nTest Path System\n")
-    for System in FCAPathSystemDF, FCASystemDF:
+    for System in FCAPathSystemDF, FCAPathSystem2Way, FCASystemDF:
         print("\nSystem ", System)
         ps = System(df)
         print("Intent ", ps.intent([]))
