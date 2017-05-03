@@ -9,8 +9,11 @@ https://teacode.wordpress.com/2013/08/02/algo-week-5-heap-and-dijkstras-shortest
 import heapq
  
  
+
 class PriorityQueue:
-    """Priority queue based on heap, capable of inserting a new node with
+    """@author: Teacode
+    https://teacode.wordpress.com/2013/08/02/algo-week-5-heap-and-dijkstras-shortest-path/
+    Priority queue based on heap, capable of inserting a new node with
     desired priority, updating the priority of an existing node and deleting
     an abitrary node while keeping invariant"""
  
@@ -22,11 +25,19 @@ class PriorityQueue:
         self.entry_finder = dict({i[-1]: i for i in heap})
         self.REMOVED = '<remove_marker>'
  
+ 
+    def __contains__(self, node):
+        """
+        Override 'in' operator
+        """
+        return node in self.entry_finder
+ 
+ 
     def insert(self, node, priority=0):
         """'entry_finder' bookkeeps all valid entries, which are bonded in
         'heap'. Changing an entry in either leads to changes in both."""
  
-        if node in self.entry_finder:
+        if node in self:
             self.delete(node)
         entry = [priority, node]
         self.entry_finder[node] = entry
@@ -35,7 +46,11 @@ class PriorityQueue:
     def delete(self, node):
         """Instead of breaking invariant by direct removal of an entry, mark
         the entry as "REMOVED" in 'heap' and remove it from 'entry_finder'.
-        Logic in 'pop()' properly takes care of the deleted nodes."""
+        Logic in 'pop()' properly takes care of the deleted nodes.
+        
+        Returns the priority.
+        
+        """
  
         entry = self.entry_finder.pop(node)
         entry[-1] = self.REMOVED
@@ -51,7 +66,7 @@ class PriorityQueue:
                 del self.entry_finder[node]
                 return priority, node
         raise KeyError('pop from an empty priority queue')
- 
+
  
 def dijkstra(source, pq, edges):
     """Returns the shortest paths from the source to all other nodes.

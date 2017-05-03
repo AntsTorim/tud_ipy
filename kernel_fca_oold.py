@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """
 Greedy FCA concept cover for binary arrays. Uses iterative MS kernels.
 MS minus technique and kernel calculation.
@@ -8,7 +10,6 @@ A. Torim,  2016
 
 import numpy as np
 import pandas as pd
-import heapq
 
 
 class KernelSystemNP:
@@ -329,24 +330,30 @@ class ConceptChainFromRec(ConceptChain):
             activerec = activerec.prev
 
 
-class _SlowFCAPathSystemDF(FCASystemDF): # For historic interest
+
+class FCAPathSystemDF(FCASystemDF):
 
 
     def __init__(self, data):
         self.data = data
-        self.factory = _SlowFCAPathSystemDF
+        #self.factory = FCASystemDF #in old
+        self.factory = FCAPathSystemDF
    
    
-    def dijkstra_gen(self, top):
+    def get_conceptchain(self):
         """
-        Yield concepts where shortest path has been found
+        Get the best conceptchain.  Here we use Dijkstras algorithm.
         """
+        # Initialize top (start) and bottom (target) concepts
+        top = self.conceptrec([])
+        bottom = self.conceptrec(self.data.columns)
+        
         # Initialize the concept dict (intent: extent, distance, previous, visited
         concepts = {top.intent: top}
-
+        
         # Initialize top-level concept as current
         current = top
-
+        print("Running Path System") # New check
         while True:
             attributes = set(self.data.columns) - current.intent
             checked_concepts = []
@@ -377,25 +384,15 @@ class _SlowFCAPathSystemDF(FCASystemDF): # For historic interest
             
             current.visited = True            
             # Select active concept with minimum distance as current
-            candidates = [c for c in concepts.values() if not c.visited]
-            if len(candidates)>0:
-                current = min(candidates, key=lambda c: c.dist)
-                yield current
-            else:
-                raise StopIteration
-       
-       
-   
-    def get_conceptchain(self):
-        """
-        Get the best conceptchain.  Here we use Dijkstras algorithm.
-        """
-        # Initialize top (start) and bottom (target) concepts
-        top = self.conceptrec([])
-        bottom = self.conceptrec(self.data.columns)
-        for current in self.dijkstra_gen(top):
+            current = min([c for c in concepts.values() if not c.visited], 
+                          key=lambda c: c.dist)
             # If current is bottom:
             if current.intent == bottom.intent:
+                c = current
+                while c != None:
+                    print("current", c.extent)
+                    c = c.prev
+                # generate conceptchain and return it
                 return ConceptChainFromRec(current)
 
                  
@@ -409,157 +406,11 @@ class _SlowFCAPathSystemDF(FCASystemDF): # For historic interest
 
     def conceptdist(self, c1, c2):
         """ 
-        'Distance' (not correct mathematical distance metric) from 
-        concept c1 to concept c2. c2 should be below c1.
-        Distance is |c2.intent - c1.intent| * (|data| - |c2.extent|)
+        'Distance' from concept c1 to concept c2. c2 should be below c1.
+        Distance is |c2.intent - c1.intent| * |data| - |c2.extent|
         """
         assert c2.extent <= c1.extent
-        return len(c2.intent - c1.intent) * (len(self.data) - len(c2.extent))
-
-
-class PriorityQueue:
-    """@author: Teacode
-    https://teacode.wordpress.com/2013/08/02/algo-week-5-heap-and-dijkstras-shortest-path/
-    Priority queue based on heap, capable of inserting a new node with
-    desired priority, updating the priority of an existing node and deleting
-    an abitrary node while keeping invariant"""
- 
-    def __init__(self, heap=[]):
-        """if 'heap' is not empty, make sure it's heapified"""
- 
-        heapq.heapify(heap)
-        self.heap = heap
-        self.entry_finder = dict({i[-1]: i for i in heap})
-        #self.REMOVED = '<remove_marker>'
-        self.REMOVED = ConceptRec(['remove',],[])
-  
-    def __contains__(self, node):
-        """
-        Override 'in' operator
-        """
-        return node in self.entry_finder      
-  
-    def __getitem__(self, key):
-        """
-        Override pq[key] access
-        """
-        return self.entry_finder[key][1]
-  
-    def insert(self, node, priority=0):
-        """'entry_finder' bookkeeps all valid entries, which are bonded in
-        'heap'. Changing an entry in either leads to changes in both."""
- 
-        if node in self:
-            self.delete(node)
-        entry = [priority, node]
-        self.entry_finder[node] = entry
-        heapq.heappush(self.heap, entry)
- 
-    def delete(self, node):
-        """Instead of breaking invariant by direct removal of an entry, mark
-        the entry as "REMOVED" in 'heap' and remove it from 'entry_finder'.
-        Logic in 'pop()' properly takes care of the deleted nodes.
-        
-        Returns the priority.
-        
-        """
- 
-        entry = self.entry_finder.pop(node)
-        entry[-1] = self.REMOVED
-        return entry[0]
- 
-    def pop(self):
-        """Any popped node marked by "REMOVED" does not return, the deleted
-        nodes might be popped or still in heap, either case is fine."""
- 
-        while self.heap:
-            priority, node = heapq.heappop(self.heap)
-            if node != self.REMOVED:
-                del self.entry_finder[node]
-                return priority, node
-        raise KeyError('pop from an empty priority queue')
-
-
-class FCAPathSystemDF(FCASystemDF):
-
-
-    def __init__(self, data):
-        self.data = data
-        self.factory = FCAPathSystemDF
-   
-   
-    def dijkstra_gen(self, top):
-        """
-        Yield concepts where shortest path has been found
-        """
-        # Initialize the concept dict (intent: extent, distance, previous, visited
-        visited_dict = {top.intent: top}
-        
-        # Initialize candidates priority Queue
-        candidates = PriorityQueue()
-
-        # Initialize top-level concept as current
-        current = top
-
-        while True:
-            attributes = set(self.data.columns) - current.intent
-            checked_concepts = []
-            # For each attribute\concept neighbouring current:
-            for attr in attributes:
-                # Generate the concept
-                ca = self.conceptrec(current.intent | {attr})
-
-                # If it has been checked, then continue to next attr
-                if ca.intent in checked_concepts:
-                    continue
-                checked_concepts.append(ca.intent)
-
-                # If it is not visited 
-                if not ca.intent in visited_dict:
-                    # Calculate its distance to current & start
-                    dist = current.dist + self.conceptdist(current, ca)
-                    # If concept not in candidates or new distance is smaller than old distance
-                    if not (ca in candidates) or (candidates[ca].dist > dist):
-                        # add data to candidates
-                        ca.dist = dist
-                        ca.prev = current
-                        candidates.insert(ca, dist)
-            try:
-                dist, current = candidates.pop()          
-                yield current
-            except KeyError: # Empty queue
-                raise StopIteration
-       
-       
-   
-    def get_conceptchain(self):
-        """
-        Get the best conceptchain.  Here we use Dijkstras algorithm.
-        """
-        # Initialize top (start) and bottom (target) concepts
-        top = self.conceptrec([])
-        bottom = self.conceptrec(self.data.columns)
-        for current in self.dijkstra_gen(top):
-            # If current is bottom:
-            if current.intent == bottom.intent:
-                return ConceptChainFromRec(current)
-            
-
-    def conceptrec(self, protointent):
-        extent = self.extent(protointent)
-        intent = self.intent(extent)
-        return ConceptRec(intent, extent)
-
-
-    def conceptdist(self, c1, c2):
-        """ 
-        'Distance' (not correct mathematical distance metric) from 
-        concept c1 to concept c2. c2 should be below c1.
-        Distance is |c2.intent - c1.intent| * (|data| - |c2.extent|)
-        """
-        assert c2.extent <= c1.extent
-        return len(c2.intent - c1.intent) * (len(self.data) - len(c2.extent))
-
+        return len(c2.intent - c1.intent) * (len(self.data) - len(c2.extent)) 
 
         
 class ConceptRec:
@@ -573,40 +424,6 @@ class ConceptRec:
         
     def __repr__(self): return str(tuple(self.intent))
 
-    def __hash__(self): return hash(self.intent)
-    
-    def __eq__(self, other): 
-        try:
-            return self.intent == other.intent
-        except:
-            return False
-        
-    def __lt__(self, other): # for heapq
-        try:
-            return self.intent < other.intent
-        except:
-            return False
-
-
-class FCAPathSystem2Way(FCAPathSystemDF):
-    
-    def __init__(self, data):
-        self.data = data
-        self.factory = FCAPathSystem2Way
-    
-    def conceptdist(self, c1, c2):
-        """
-        Symmetrical distance function (top to bottom, bottom to top).
-        Sum of distances is the area of data table not covered by the concept chain.
-        Middle square between c1 and c2 has weight 1 and two projections have weight 1/2.
-        """
-        if c2.extent > c1.extent:
-            c1, c2 = c2, c1
-        de = len(c1.extent-c2.extent)
-        di = len(c2.intent-c1.intent)
-        lg, lm = self.data.shape
-        weight = (di * de) + (de * (lm - len(c2.intent)) / 2) + (di * (lg - len(c1.extent)) / 2)
-        return weight
 
 
 def main():
@@ -687,33 +504,27 @@ def main():
         print(u)
         
     print("\nTest Path System\n")
-    for System in FCAPathSystemDF, FCAPathSystem2Way, FCASystemDF:
-        print("\nSystem ", System)
+    for System in FCAPathSystemDF, FCASystemDF:
         ps = System(df)
-        print("Intent ", ps.intent([]))
+        print(ps.intent([]))
         #print(list(df.index))
         #cr = ps.conceptrec([])
         #print(cr.intent, cr.extent)
         cc = ps.get_conceptchain()
-        print("Chain ",  cc)
-        print("Chain areas ",  cc.concept_areas())
+        print(cc)
+        print(cc.concept_areas())
         ccc, uc = ps.conceptchaincover()
-        print("CC cover (intent, areas, maxima):")
         for c, u in zip(ccc, uc):
             print(c.intent_labels(), c.concept_areas(), c.local_maxima())
-            print("Uncovered", u)
+            print(u)
 
 
 def simple_main():
      andmed = np.array([[1, 0, 1], [0, 0, 1]])
      andmed = pd.DataFrame(andmed) # Teeme DataFrameks
-     katte_systeem = FCAPathSystem2Way(andmed) # Dijkstra algoritmi pohine
+     katte_systeem = FCAPathSystemDF(andmed) # Dijkstra algoritmi pohine
      #katte_systeem = FCASystemDF(andmed) # Monotoonsets syst miinustehnika pohine
      kate = katte_systeem.conceptchaincover()
-     import cProfile
-     cProfile.runctx('katte_systeem.conceptchaincover()', 
-                     globals={'katte_systeem': katte_systeem},
-                     locals={})
      print(kate)
      # Jalutame katte elemendid ykshaaval labi
      ahelate_list, katamata_protsendi_list = kate
@@ -725,8 +536,7 @@ def simple_main():
      
 
 if __name__ == "__main__":
-    simple_main()
-    #main()
+    main()
 
     
     
