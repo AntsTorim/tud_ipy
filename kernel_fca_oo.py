@@ -50,7 +50,7 @@ class KernelSystemNP:
         Returns kernel row indices for data
         """
         mf = self.minusframe()
-        mf.sort('i', inplace=True, ascending=False) # prefer smaller extents
+        mf.sort_values('i', inplace=True, ascending=False) # prefer smaller extents
         max_wi = mf['w'].idxmax()
         max_i = mf.loc[max_wi, 'i']
         return mf[mf['i'] >= max_i].index
@@ -183,7 +183,7 @@ class FCASystemDF(KernelSystemDF):
             Returns extent for the largest area concept in minus sequence
             """
             mf = self.minusframe()
-            mf.sort('i', inplace=True, ascending=False) # prefer smaller extents
+            mf.sort_values('i', inplace=True, ascending=False) # prefer smaller extents
             best_area = -1
             current_extent = []
             for r in mf.index:
@@ -243,7 +243,7 @@ class ConceptChain(list):
         """
         # If objectseq is minusframe-like then turn it into a sequence of index labels
         try:
-            objectseq = list(objectseq.sort('i', ascending=False).index)
+            objectseq = list(objectseq.sort_values('i', ascending=False).index)
         except:
             pass
         self.seq = objectseq
@@ -725,8 +725,8 @@ def simple_main():
      
 
 if __name__ == "__main__":
-    simple_main()
-    #main()
+    #simple_main()
+    main()
 
     
     
