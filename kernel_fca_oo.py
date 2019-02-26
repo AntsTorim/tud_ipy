@@ -11,6 +11,7 @@ import pandas as pd
 import heapq
 import sortseriate
 from sklearn.cluster import KMeans
+import copy
 
 class KernelSystemNP:
     
@@ -318,6 +319,16 @@ class ConceptChain(list):
                 result.append(i)
         if areas[-1] >= areas[-2]:
             result.append(len(self)-1)
+        return result
+    
+    def transpose(self):
+        """
+        Return transposed concept chain, where extent and intent have been swapped
+        """
+        result = copy.deepcopy(self)
+        result.clear()
+        for e, i in self:
+            result.append((i, e))
         return result
 
 
@@ -628,7 +639,7 @@ class FreqLexiSeriateSystem(FCASystemDF):
            
 
 
-class KMeansSystem(KernelSystemNP):
+class KMeansSystem(KernelSystemDF):
     
     def __init__(self, data):
         self.data = data
@@ -640,17 +651,72 @@ class KMeansSystem(KernelSystemNP):
         random_state: None: undeterministic; int: deterministic seed
         Uncovered is ignored.
         """
+        
+        # Find clusters
         kmeans = KMeans(n_clusters=n_chains, random_state=random_state).fit(self.data)
-        print(self.data.loc[['i', 'ii', 'iii']])
-        print(kmeans.labels_)
+        
+        # For each cluster
         for i in range(n_chains):
-            #extent = np.argwhere(kmeans.labels_ == i)
+            
+            # Find the concept for the cluster    
             extent = list(self.data[kmeans.labels_ == i].index)
-            print(extent)
             intent = self.intent(extent)
-            print(intent)
+            extent = self.extent(intent)
+            print(extent, intent)
             
+            # Find chain up
+            chain_up = self.chain(extent)
             
+            # Find chain down
+            chain_down = self.chain(intent, is_intent=True)
+            
+            # Combine
+            cc = chain_down
+            for c in chain_up[-2::-1]: #backwards, ignore last (identical)
+                cc.append(c)
+            print(cc)
+            
+            # Calculate uncovered
+            # Add chain to the cover
+        # Return the cover
+            
+     
+    def chain(self, extintent, is_intent=False):
+        """
+        Return the concept chain corresponding to extent or intent.
+        If we have extent then chain to top, if intent then chain to bottom.
+        """
+        
+        # If intent then transpose
+        if is_intent:
+            ks = copy.deepcopy(self)
+            ks.data = ks.data.T
+        else:
+            ks = self
+            
+        # Find selection
+        selection_df = ks.data.loc[extintent]
+        
+        # Seriate it 
+        sort_extintent = self.seriate(selection_df)
+        
+        # Generate Chain
+        cc = ConceptChain(sort_extintent, ks)
+        
+         # If intent then transpose back
+        if is_intent:
+            cc = cc.transpose()
+          
+        return cc
+  
+      
+    def seriate(self, df):
+        """
+        Return seriated indices for dataframe        
+        """
+        sort_i = sortseriate.ConfSeriation().fit(df).sortindices_
+        return df.iloc[sort_i].index
+        
 
 def main():
     """
