@@ -1,0 +1,10 @@
+[
+  "test_fca_oo.py::test_ei",
+  "test_fca_oo.py::test_mf",
+  "test_fca_oo.py::test_cc",
+  "test_fca_oo.py::test_ints_are_commutative",
+  "test_fca_oo.py::test_answer",
+  "test_fca_oo.py::test_answer2",
+  "test_sortseriate.py::test_freq",
+  "test_sortseriate.py::test_conf"
+]

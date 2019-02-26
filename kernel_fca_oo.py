@@ -9,7 +9,8 @@ A. Torim,  2016
 import numpy as np
 import pandas as pd
 import heapq
-
+import sortseriate
+from sklearn.cluster import KMeans
 
 class KernelSystemNP:
     
@@ -201,7 +202,7 @@ class FCASystemDF(KernelSystemDF):
             Returns a set of concept chains covering the data and a list of 
             corresponding ratios of data table left uncovered.
   
-            Uncovered is a ratio of 1-s that can be left uncovered.
+            Uncovered is the maximal allowed ratio of uncovered 1-s.
             """
             arr = self.datacopy()
             old_sum = arr_sum = self.totalsum(arr)
@@ -609,6 +610,48 @@ class FCAPathSystem2Way(FCAPathSystemDF):
         return weight
 
 
+class FreqLexiSeriateSystem(FCASystemDF):
+    
+    
+    def __init__(self, data):
+        self.data = data
+        self.factory = FreqLexiSeriateSystem
+    
+    def get_conceptchain(self):
+        """
+        Get the best conceptchain. 
+        """
+        fls = sortseriate.FreqLexiSeriation()
+        fls.fit(self.data.values)
+        cc = ConceptChain(self.data.index[fls.row_i], self)
+        return cc
+           
+
+
+class KMeansSystem(KernelSystemNP):
+    
+    def __init__(self, data):
+        self.data = data
+
+
+    def conceptchaincover(self, uncovered=0.1, n_chains=8, random_state=None):
+        """
+        n_chains: Number of chains based on Kmeans clusters
+        random_state: None: undeterministic; int: deterministic seed
+        Uncovered is ignored.
+        """
+        kmeans = KMeans(n_clusters=n_chains, random_state=random_state).fit(self.data)
+        print(self.data.loc[['i', 'ii', 'iii']])
+        print(kmeans.labels_)
+        for i in range(n_chains):
+            #extent = np.argwhere(kmeans.labels_ == i)
+            extent = list(self.data[kmeans.labels_ == i].index)
+            print(extent)
+            intent = self.intent(extent)
+            print(intent)
+            
+            
+
 def main():
     """
     mf = minusframe(data)
@@ -705,28 +748,63 @@ def main():
 
 
 def simple_main():
-     andmed = np.array([[1, 0, 1], [0, 0, 1]])
-     andmed = pd.DataFrame(andmed) # Teeme DataFrameks
-     katte_systeem = FCAPathSystem2Way(andmed) # Dijkstra algoritmi pohine
+     andmed = np.array([[0, 0, 1, 1, 1, 1, 0],                   
+                   [0, 0, 0, 1, 1, 1, 1],
+                   [1, 0, 1, 0, 1, 1, 1],
+                   [1, 0, 1, 1, 1, 0, 0],
+                   [1, 1, 1, 0, 1, 0, 0],
+                   [1, 1, 1, 1, 1, 0, 0],
+                   [1, 1, 0, 0, 0, 0, 0],
+                   [1, 1, 1, 0, 0, 0, 0]])
+     #andmed = np.array([[1, 0, 1], [0, 0, 1]])
+     
+     #andmed = pd.DataFrame(andmed) # Teeme DataFrameks
+     andmed = pd.DataFrame(andmed, index=['i','ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'], 
+                           columns=['a','b','c', 'd', 'e', 'f', 'g'])
+     #katte_systeem = FCAPathSystem2Way(andmed) # Dijkstra algoritmi pohine
      #katte_systeem = FCASystemDF(andmed) # Monotoonsets syst miinustehnika pohine
+     katte_systeem = FreqLexiSeriateSystem(andmed)
      kate = katte_systeem.conceptchaincover()
+     """
      import cProfile
      cProfile.runctx('katte_systeem.conceptchaincover()', 
                      globals={'katte_systeem': katte_systeem},
                      locals={})
+     """
      print(kate)
+     
      # Jalutame katte elemendid ykshaaval labi
      ahelate_list, katamata_protsendi_list = kate
      for ahel in ahelate_list:
+         print("\nAhel:")
          for kontsept in ahel:
              ekstent, intent = kontsept
              print("Ekstent:", ekstent)
              print("Intent:", intent)
      
 
+def simple_main_kmeans():
+     andmed = np.array([[0, 0, 1, 1, 1, 1, 0],                   
+                   [0, 0, 0, 1, 1, 1, 1],
+                   [1, 0, 1, 0, 1, 1, 1],
+                   [1, 0, 1, 1, 1, 0, 0],
+                   [1, 1, 1, 0, 1, 0, 0],
+                   [1, 1, 1, 1, 1, 0, 0],
+                   [1, 1, 0, 0, 0, 0, 0],
+                   [1, 1, 1, 0, 0, 0, 0]])
+     #andmed = np.array([[1, 0, 1], [0, 0, 1]])
+     
+     #andmed = pd.DataFrame(andmed) # Teeme DataFrameks
+     andmed = pd.DataFrame(andmed, index=['i','ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'], 
+                           columns=['a','b','c', 'd', 'e', 'f', 'g'])
+     katte_systeem = KMeansSystem(andmed)
+     kate = katte_systeem.conceptchaincover(n_chains=3)
+
+
 if __name__ == "__main__":
+    simple_main_kmeans()
     #simple_main()
-    main()
+    #main()
 
     
     
