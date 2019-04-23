@@ -60,12 +60,20 @@ class LexiIterSeriation(sk.TransformerMixin):
     until stable solution is reached. 
     """
     
+    def __init__(self, refiller=None):
+        self.refiller = refiller
+    
     def fit(self, X):
         X_new = None
         transposed = False
         self.row_i, self.col_i  = np.arange(X.shape[0]), np.arange(X.shape[1])
         self.stepcount = 0
         while True:
+            if self.refiller:
+                if transposed:
+                    X = self.refiller.transform(X.T, axis=0, row_i=self.row_i, col_i=self.col_i).T
+                else:
+                    X = self.refiller.transform(X, axis=1, row_i=self.row_i, col_i=self.col_i)
             ls = LexiSeriation()
             X_new = ls.fit_transform(X)
             if transposed:
@@ -73,7 +81,8 @@ class LexiIterSeriation(sk.TransformerMixin):
             else:
                 self.row_i = self.row_i[ls.sortindices_]
             self.stepcount += 1
-            if (X == X_new).all() and self.stepcount>1: break
+            if (X == X_new).all() and self.stepcount>1: 
+                break
             X = X_new.transpose()
             transposed = not transposed
         return self
@@ -84,8 +93,11 @@ class LexiIterSeriation(sk.TransformerMixin):
 
 class FreqLexiSeriation(sk.TransformerMixin):
     
+    def __init__(self, preseriate=Freq2DSeriation):
+        self.preseriate = preseriate
+    
     def fit(self, X):
-        f2s = Freq2DSeriation()
+        f2s = self.preseriate()
         Y = f2s.fit_transform(X)
         lis = LexiIterSeriation()
         lis.fit(Y)
@@ -116,7 +128,85 @@ class ConfSeriation(sk.TransformerMixin):
         return X[self.sortindices_]
 
 
+class Conf2DSeriation(sk.TransformerMixin):
+    """
+    Seriate by conformism
+    """
+    
+    def fit(self, X):
+        """
+        X must be a binary data table
+        """
+        self.col_freq = np.add.reduce(X)
+        self.row_conf = np.add.reduce(self.col_freq * X, axis=1) 
+        self.row_i = np.argsort(self.row_conf)[::-1]
+        
+        self.row_freq = np.add.reduce(X, axis=1)
+        self.col_conf = np.add.reduce(X * self.row_freq[:, np.newaxis], axis=0) 
+        self.col_i = np.argsort(self.col_conf)[::-1]
+        
+        return self
+        
+    def transform(self, X):
+        return X[self.row_i][:, self.col_i]
+    
+
+class Refiller(sk.TransformerMixin):
+    """
+    Refill the streaks of ones in original up to the ones in a new array
+    """
+    
+    def fit(self, X):
+        self.original = X
+        streaks = [np.logical_and.accumulate(self.original, axis=a) for a in (0,1)]
+        # add extra row/col of ones
+        streaks[1] = np.c_[np.ones(streaks[0].shape[0], dtype='bool'), streaks[1][:, :-1]]
+        new_row = np.ones(streaks[0].shape[1], dtype='bool')[np.newaxis,...]
+        streaks[0] = np.concatenate((new_row, streaks[0][:-1, :]), axis=0)
+        
+        self.streaks = streaks
+        self.row_i = np.arange(X.shape[0])
+        self.col_i = np.arange(X.shape[1])
+        return self
+        
+    
+    def arrange(self, row_i, col_i): 
+        """
+        Seriate original matrix by row_i, col_i
+        """
+        self.row_i = np.array(row_i)
+        self.col_i = np.array(col_i)
+        
+    def transform(self, X, axis=1, row_i=None, col_i=None):
+        """
+        Refill along the axis seriating the possibly arranged original by row_i and col_i if not None
+        """
+        #import pdb
+        if row_i is None  or col_i is None:
+            row_i, col_i = self.row_i, self.col_i
+            
+        else:
+            row_i, col_i = self.row_i[row_i], self.col_i[col_i]
+        streaks = self.streaks[axis][row_i][:, col_i]
+        #pdb.set_trace()
+        fillpoint = streaks & X.astype(bool)
+        to_fill = np.flip(np.logical_or.accumulate(np.flip(fillpoint, axis=axis), axis=axis), axis=axis)
+        return np.where(to_fill, 1, X)
+        
+
 if __name__ == "__main__":
+    a = np.array([[0, 1, 0, 0, 1],
+                  [1, 1, 1, 0, 1],
+                  [0, 0, 0, 1, 1],
+                  [0, 0, 0, 1, 1]])
+    r = Refiller()
+    r.fit(a)
+    c = np.array([[0, 1, 0, 0, 1],
+                  [0, 0, 1, 0, 1],
+                  [0, 0, 0, 1, 1],
+                  [0, 0, 0, 1, 1]])
+    lis_c = LexiIterSeriation(refiller=r).fit_transform(c)
+    print(lis_c)
     """
     X = np.array([[1, 1, 0, 1, 1],
                   [0, 1, 0, 1, 1],
@@ -158,15 +248,20 @@ if __name__ == "__main__":
     print(col_i)
     print(stepcount)
     """
-    """
-    f2s = Freq2DSeriation()
+    X = np.array([[0, 0, 1, 0, 1],
+                  [1, 1, 0, 1, 0],
+                  [0, 0, 1, 0, 1]])
+    f2s = Conf2DSeriation()
     f2s.fit(X)
     print(f2s.row_i)
     print(f2s.col_i)
     Y = f2s.transform(X)
     print(Y)
 
-    
+    r = Refiller()
+    r.fit(X)
+    r.transform(X)
+    """
     lis = LexiIterSeriation()
     lis.fit(Y)
     print(lis.row_i)
@@ -201,7 +296,7 @@ if __name__ == "__main__":
     #print(fs.transform(X))
     """
     print("Find LexiIterSeriation steps")
-    for i in range(100, 5000, 100):
+    for i in range(100, 1500, 100):
         # Smallest dim determines reps? 
         # Sufficient complexity of smallest dim determines reps?
         # Logarithm of smallest dim determines reps?
@@ -210,6 +305,7 @@ if __name__ == "__main__":
         rnd_table = rnd.randint(2, size=(i, i)) 
         li = LexiIterSeriation()
         fls = Freq2DSeriation()
+        #fls = Conf2DSeriation()
         #li.fit(rnd_table)
         li.fit(fls.fit_transform(rnd_table))
         if li.stepcount > 0:

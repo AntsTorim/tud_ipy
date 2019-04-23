@@ -28,8 +28,8 @@ def kernel_classes():
     return [krn.KernelSystemNP, krn.KernelSystemDF, krn.FCASystemDF]
 
 
-arr_shape_strat = st.tuples(st.integers(min_value=2, max_value=10), 
-                            st.integers(min_value=2, max_value=10))
+arr_shape_strat = st.tuples(st.integers(min_value=2, max_value=5), 
+                            st.integers(min_value=2, max_value=5))
 bin_int_strat = st.integers(min_value=0, max_value=1)
 arr_strat = arr_shape_strat.flatmap(lambda t: st_np.arrays(np.int8, (t[0], t[1]), 
                                                            elements=bin_int_strat))
@@ -84,6 +84,9 @@ def test_cc():
         ks = System(pd.DataFrame(bin_slr))  
         ccc = ks.conceptchaincover()
         assert ccc[0][0].area() > 15
+    #    ks = System(bin_slr)  
+        ccc2 = ks.conceptchaincover_v2()
+        assert ccc2[0][0].area() > 15
         
     ks = krn.FCAPathSystemDF(pd.DataFrame(bin_slr))
     cr = ks.conceptrec([])

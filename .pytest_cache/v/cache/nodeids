@@ -6,5 +6,8 @@
   "test_fca_oo.py::test_answer",
   "test_fca_oo.py::test_answer2",
   "test_sortseriate.py::test_freq",
-  "test_sortseriate.py::test_conf"
+  "test_sortseriate.py::test_conf",
+  "test_sortseriate.py::test_conf2d",
+  "test_sortseriate.py::test_liseriate",
+  "test_sortseriate.py::test_refill"
 ]

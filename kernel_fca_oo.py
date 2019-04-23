@@ -198,7 +198,7 @@ class FCASystemDF(KernelSystemDF):
                     result = current_e
             return result
                 
-        def conceptchaincover(self, uncovered=0.1):
+        def conceptchaincover(self, uncovered=0.1, max_cc=20):
             """
             Returns a set of concept chains covering the data and a list of 
             corresponding ratios of data table left uncovered.
@@ -218,11 +218,46 @@ class FCASystemDF(KernelSystemDF):
                     arr = ks.removed(e, i)
                 new_sum = self.totalsum(arr)
                 uncovered_list.append(new_sum/arr_sum)
-                if (old_sum == new_sum) or (new_sum/arr_sum < uncovered): 
+                if (old_sum == new_sum) or (new_sum/arr_sum < uncovered) or len(result) >= max_cc: 
                    # print("Total uncovered: ", self.totalsum(arr), "/", arr_sum)
                     break
                 old_sum = new_sum
             return result, uncovered_list
+
+
+        def conceptchaincover_v2(self, uncovered=0.1, max_cc=20):
+            """
+            Returns a set of concept chains covering the data and a list of 
+            corresponding ratios of data table left uncovered.
+            For finding new concept chains connecting elements,
+            that is 1-s that have any uncovered 1s in their rows and columns,
+            are retained (connected array).
+  
+            Uncovered is the maximal allowed ratio of uncovered 1-s.
+            More complex than v1, cover comparison with it mixed.
+            """
+            arr = connected = self.datacopy()
+            old_sum = arr_sum = self.totalsum(arr)
+            result = []
+            uncovered_list = []
+            while True:
+                ks = self.factory(connected)
+                cc = ks.get_conceptchain()
+                result.append(cc)
+                for e, i in cc:
+                    ks = self.factory(arr)
+                    arr = ks.removed(e, i)
+                new_sum = self.totalsum(arr)
+                connected = self.data * arr.any(axis=0)
+                connected = connected.mul(arr.any(axis=1), axis='index')
+                connected = connected + arr
+                uncovered_list.append(new_sum/arr_sum)
+                if (old_sum == new_sum) or (new_sum/arr_sum < uncovered) or len(result) >= max_cc: 
+                   # print("Total uncovered: ", self.totalsum(arr), "/", arr_sum)
+                    break
+                old_sum = new_sum
+            return result, uncovered_list
+
 
         def get_conceptchain(self):
             """
@@ -331,6 +366,9 @@ class ConceptChain(list):
             result.append((i, e))
         return result
 
+    @property
+    def T(self): return self.transpose()
+    
 
 class ConceptChainFromRec(ConceptChain):
 
@@ -632,28 +670,50 @@ class FreqLexiSeriateSystem(FCASystemDF):
         """
         Get the best conceptchain. 
         """
-        fls = sortseriate.FreqLexiSeriation()
+        #fls = sortseriate.FreqLexiSeriation()
+        fls = self.preseriate()
         fls.fit(self.data.values)
         cc = ConceptChain(self.data.index[fls.row_i], self)
         return cc
-           
+     
+    def preseriate(self):
+        return sortseriate.FreqLexiSeriation()
+
+
+class ConfLexiSeriateSystem(FreqLexiSeriateSystem):
+    
+    def __init__(self, data):
+        self.data = data
+        self.factory = ConfLexiSeriateSystem
+    
+    def preseriate(self):
+        return sortseriate.FreqLexiSeriation(preseriate=sortseriate.Conf2DSeriation)
 
 
 class KMeansSystem(KernelSystemDF):
     
-    def __init__(self, data):
+    def __init__(self, data, n_chains=8, random_state=None):
         self.data = data
+        self.n_chains = n_chains
+        self.random_state = random_state
 
 
-    def conceptchaincover(self, uncovered=0.1, n_chains=8, random_state=None):
+    def conceptchaincover(self, uncovered=0.1):
         """
         n_chains: Number of chains based on Kmeans clusters
         random_state: None: undeterministic; int: deterministic seed
-        Uncovered is ignored.
+        Uncovered, max_cc are ignored.
         """
-        
+                        
         # Find clusters
-        kmeans = KMeans(n_clusters=n_chains, random_state=random_state).fit(self.data)
+        n_chains = self.n_chains
+        kmeans = KMeans(n_clusters=n_chains, random_state=self.random_state).fit(self.data)
+        chains = []
+        
+        # Initialize array and vars for uncovered % calculation
+        arr = self.datacopy()
+        arr_sum = self.totalsum(arr)
+        uncovered_list = []
         
         # For each cluster
         for i in range(n_chains):
@@ -662,7 +722,6 @@ class KMeansSystem(KernelSystemDF):
             extent = list(self.data[kmeans.labels_ == i].index)
             intent = self.intent(extent)
             extent = self.extent(intent)
-            print(extent, intent)
             
             # Find chain up
             chain_up = self.chain(extent)
@@ -671,14 +730,20 @@ class KMeansSystem(KernelSystemDF):
             chain_down = self.chain(intent, is_intent=True)
             
             # Combine
-            cc = chain_down
-            for c in chain_up[-2::-1]: #backwards, ignore last (identical)
+            cc = chain_up
+            for c in chain_down[-2::-1]: #backwards, ignore last (identical)
                 cc.append(c)
-            print(cc)
             
             # Calculate uncovered
+            for extent, intent in cc:
+                arr.loc[extent, intent] = 0
+            uncovered_list.append(arr.values.sum() / arr_sum)
+                        
             # Add chain to the cover
+            chains.append(cc)
+            
         # Return the cover
+        return chains, uncovered_list
             
      
     def chain(self, extintent, is_intent=False):
@@ -700,21 +765,21 @@ class KMeansSystem(KernelSystemDF):
         # Seriate it 
         sort_extintent = self.seriate(selection_df)
         
-        # Generate Chain
+        # Generate chain
         cc = ConceptChain(sort_extintent, ks)
         
-         # If intent then transpose back
-        if is_intent:
-            cc = cc.transpose()
+         # If intent, then transpose back
+        if is_intent: cc = cc.T
           
         return cc
   
       
     def seriate(self, df):
         """
-        Return seriated indices for dataframe        
+        Return seriated indices for dataframe
+        TBD: has turned buggy!        
         """
-        sort_i = sortseriate.ConfSeriation().fit(df).sortindices_
+        sort_i = sortseriate.ConfSeriation().fit(df.values).sortindices_
         return df.iloc[sort_i].index
         
 
@@ -829,7 +894,8 @@ def simple_main():
                            columns=['a','b','c', 'd', 'e', 'f', 'g'])
      #katte_systeem = FCAPathSystem2Way(andmed) # Dijkstra algoritmi pohine
      #katte_systeem = FCASystemDF(andmed) # Monotoonsets syst miinustehnika pohine
-     katte_systeem = FreqLexiSeriateSystem(andmed)
+     #katte_systeem = FreqLexiSeriateSystem(andmed)
+     katte_systeem = ConfLexiSeriateSystem(andmed)
      kate = katte_systeem.conceptchaincover()
      """
      import cProfile
@@ -840,7 +906,8 @@ def simple_main():
      print(kate)
      
      # Jalutame katte elemendid ykshaaval labi
-     ahelate_list, katamata_protsendi_list = kate
+     ahelate_list, katmata_protsendi_list = kate
+     print(katmata_protsendi_list)
      for ahel in ahelate_list:
          print("\nAhel:")
          for kontsept in ahel:
@@ -863,8 +930,17 @@ def simple_main_kmeans():
      #andmed = pd.DataFrame(andmed) # Teeme DataFrameks
      andmed = pd.DataFrame(andmed, index=['i','ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'], 
                            columns=['a','b','c', 'd', 'e', 'f', 'g'])
-     katte_systeem = KMeansSystem(andmed)
-     kate = katte_systeem.conceptchaincover(n_chains=3)
+     katte_systeem = KMeansSystem(andmed, n_chains=3)
+     kate = katte_systeem.conceptchaincover()
+     ahelate_list, katmata_protsendi_list = kate
+     for ahel, katmata in zip(ahelate_list, katmata_protsendi_list):
+         print("\nAhel:")
+         for kontsept in ahel:
+             ekstent, intent = kontsept
+             print("Ekstent:", ekstent)
+             print("Intent:", intent)
+         print("Katmata:", katmata)
+             
 
 
 if __name__ == "__main__":
