@@ -113,10 +113,10 @@ def test_ConceptChain():
     ks = krn.FCASystemDF(pd.DataFrame(bin_slr))  
     cc = krn.ConceptChain([1, 2, 3, 6], ks)
     assert len(cc) == 3
-    assert [(len(e), len(i)) for e, i in cc] == [(1,4), (2,3), (3,1)]
+    assert [(len(e), len(i)) for e, i in cc] == [(1,4), (2,3), (6,1)]
     ccT = krn.ConceptChain.intent_init([1, 2, 3, 6], ks)
     assert len(ccT) == 3
-    assert [(len(e), len(i)) for e, i in ccT] == [(4,1), (3,2), (1,3)]
+    assert [(len(e), len(i)) for e, i in ccT] == [(4,2), (3,3), (1,5)]
     #assert ccT.intent_labels() == [1, 2, 3, 6]
 
 

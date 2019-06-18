@@ -295,29 +295,20 @@ class ConceptChain(list):
         
         # Generate concepts
         extent = set()
-        intent = set(ks.data.columns)
+        extent_obj = set()
         for obj in objectseq:
-        #intent = set(ks.intent(objectseq[0]))
-        #extent = set(ks.extent(intent))
-        #for obj in objectseq[1:]:
-            # calculate {object}'
-            obj_intent = set(ks.intent([obj]))
-            # if it does not contain the whole intent:
-            if len(intent - obj_intent) > 0:
-                # add previous concept to list
-                if len(extent) > 0:
-                    self.append((extent, intent))
-                    
-                # generate the next concept:  extent = extent union {object}, intent = [intent intersection {object}']
-                extent = extent  | {obj} 
-                #extent = extent  | set(ks.extent(obj_intent))
-                intent = intent & obj_intent
-            # else add object to extent
-            else:
-                extent.add(obj)
-        # if final concept has non-zero intent then add it
-        if len(intent) > 0:
-            self.append((extent, intent))
+            extent_obj = extent  | {obj} 
+            # If object is not in previous extent
+            if len(extent_obj) > len(extent):
+                # generate a concept
+                intent = set(ks.intent(extent_obj))
+                # We don' t deal with zero-coverage concepts
+                if len(intent) == 0: break
+                extent = set(ks.extent(intent))
+                # add the concept
+                self.append((extent, intent))
+                
+
             
         
     def extent_labels(self):
@@ -381,6 +372,49 @@ class ConceptChain(list):
     @property
     def T(self): return self.transpose()
     
+
+
+class _ConceptChainOld(ConceptChain):
+    """
+    Old implementation of CC generation.
+    Does not add all objects into first and last extent.
+    """
+    
+    def __init__(self, objectseq, ks):
+        """
+        ks is a kernel system
+        objectseq is either a minusframe or a sequence of index labels for data
+        """
+        # If objectseq is minusframe-like then turn it into a sequence of index labels
+        try:
+            objectseq = list(objectseq.sort_values('i', ascending=False).index)
+        except:
+            pass
+        self.seq = objectseq
+    
+        # Generate concepts
+        extent = set()
+        intent = set(ks.data.columns)
+        for obj in objectseq:
+            # calculate {object}'
+            obj_intent = set(ks.intent([obj]))
+            # if it does not contain the whole intent:
+            if len(intent - obj_intent) > 0:
+                # add previous concept to list
+                if len(extent) > 0:
+                    self.append((extent, intent))
+                    
+                # generate the next concept:  extent = extent union {object}, intent = [intent intersection {object}']
+                extent = extent  | {obj} 
+                #extent = extent  | set(ks.extent(obj_intent))
+                intent = intent & obj_intent
+            # else add object to extent
+            else:
+                extent.add(obj)
+        # if final concept has non-zero intent then add it
+        if len(intent) > 0:
+            self.append((extent, intent))
+
 
 class ConceptChainFromRec(ConceptChain):
 
