@@ -8,7 +8,6 @@ import numpy as np
 import numpy.random as rnd
 import sklearn.base as sk
 
-
 class FreqSeriation(sk.TransformerMixin):
     """
     Seriate by frequencies, rows only
@@ -93,13 +92,16 @@ class LexiIterSeriation(sk.TransformerMixin):
 
 class FreqLexiSeriation(sk.TransformerMixin):
     
-    def __init__(self, preseriate=Freq2DSeriation):
+    def __init__(self, preseriate=Freq2DSeriation, refiller=None):
         self.preseriate = preseriate
+        self.refiller = refiller
     
     def fit(self, X):
         f2s = self.preseriate()
         Y = f2s.fit_transform(X)
-        lis = LexiIterSeriation()
+        if self.refiller:
+            self.refiller.arrange(row_i=f2s.row_i, col_i=f2s.col_i)
+        lis = LexiIterSeriation(refiller=self.refiller)
         lis.fit(Y)
         self.row_i = f2s.row_i[lis.row_i]
         self.col_i = f2s.col_i[lis.col_i]
@@ -157,14 +159,7 @@ class Refiller(sk.TransformerMixin):
     """
     
     def fit(self, X):
-        self.original = X
-        streaks = [np.logical_and.accumulate(self.original, axis=a) for a in (0,1)]
-        # add extra row/col of ones
-        streaks[1] = np.c_[np.ones(streaks[0].shape[0], dtype='bool'), streaks[1][:, :-1]]
-        new_row = np.ones(streaks[0].shape[1], dtype='bool')[np.newaxis,...]
-        streaks[0] = np.concatenate((new_row, streaks[0][:-1, :]), axis=0)
-        
-        self.streaks = streaks
+        self.original = np.asarray(X)
         self.row_i = np.arange(X.shape[0])
         self.col_i = np.arange(X.shape[1])
         return self
@@ -181,14 +176,21 @@ class Refiller(sk.TransformerMixin):
         """
         Refill along the axis seriating the possibly arranged original by row_i and col_i if not None
         """
-        #import pdb
         if row_i is None  or col_i is None:
             row_i, col_i = self.row_i, self.col_i
             
         else:
             row_i, col_i = self.row_i[row_i], self.col_i[col_i]
-        streaks = self.streaks[axis][row_i][:, col_i]
-        #pdb.set_trace()
+        X_0 = self.original[row_i][:, col_i]
+        streaks = np.logical_and.accumulate(X_0, axis=axis) #A
+        
+        # add extra row/col of ones
+        if axis == 1:
+            streaks = np.c_[np.ones(streaks.shape[0], dtype='bool'), streaks[:, :-1]]
+        elif axis == 0:
+            new_row = np.ones(streaks.shape[1], dtype='bool')[np.newaxis,...]
+            streaks = np.concatenate((new_row, streaks[:-1, :]), axis=0)
+
         fillpoint = streaks & X.astype(bool)
         to_fill = np.flip(np.logical_or.accumulate(np.flip(fillpoint, axis=axis), axis=axis), axis=axis)
         return np.where(to_fill, 1, X)

@@ -100,7 +100,43 @@ def test_refill():
                          [0, 0, 0],
                          [1, 1, 0]])
     
+
+
+def test_FL_seriate():
+    a = np.array([[0, 0, 0, 0],
+                  [0, 0, 0, 1],
+                  [0, 0, 0, 0],
+                  [0, 0, 0, 0],
+                  [0, 1, 0, 0],
+                  [0, 1, 0, 0]])
+    fls_a = FreqLexiSeriation(preseriate=Conf2DSeriation).fit_transform(a)
+    expected = np.array([[1, 0, 0, 0],
+                         [1, 0, 0, 0],
+                         [0, 1, 0, 0],
+                         [0, 0, 0, 0],
+                         [0, 0, 0, 0],
+                         [0, 0, 0, 0]])
+    assert (fls_a == expected).all()
+    
+    # Test with refill, fls_r corner will be 1 in a0
+    a0 = np.array([[1, 1, 1, 0],
+                   [1, 1, 0, 1],
+                   [1, 0, 0, 0],
+                   [1, 0, 0, 0],
+                   [0, 1, 0, 0],
+                   [0, 1, 0, 0]])
+    r = Refiller()
+    r.fit(a0)
+    fls_r = FreqLexiSeriation(preseriate=Conf2DSeriation, refiller=r).fit_transform(a)
+    expected = np.array([[0, 1, 0, 0],
+                         [1, 0, 0, 0],
+                         [1, 0, 0, 0],
+                         [0, 0, 0, 0],
+                         [0, 0, 0, 0],
+                         [0, 0, 0, 0]])
+    assert (fls_r == expected).all()
     
     
 if __name__ == "__main__":
     pytest.main(args=["-v"])
+    #test_FL_seriate()

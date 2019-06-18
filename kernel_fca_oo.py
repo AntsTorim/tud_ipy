@@ -11,6 +11,7 @@ import pandas as pd
 import heapq
 import sortseriate
 from sklearn.cluster import KMeans
+import sklearn.base as sk
 import copy
 
 class KernelSystemNP:
@@ -273,6 +274,13 @@ class ConceptChain(list):
     A chain of concepts
     """
     
+    @staticmethod
+    def intent_init(attr_seq, ks): 
+        ksT = copy.deepcopy(ks)
+        ksT.data = ksT.data.T
+        return ConceptChain(attr_seq, ksT).T
+        
+    
     def __init__(self, objectseq, ks):
         """
         ks is a kernel system
@@ -289,6 +297,9 @@ class ConceptChain(list):
         extent = set()
         intent = set(ks.data.columns)
         for obj in objectseq:
+        #intent = set(ks.intent(objectseq[0]))
+        #extent = set(ks.extent(intent))
+        #for obj in objectseq[1:]:
             # calculate {object}'
             obj_intent = set(ks.intent([obj]))
             # if it does not contain the whole intent:
@@ -298,7 +309,8 @@ class ConceptChain(list):
                     self.append((extent, intent))
                     
                 # generate the next concept:  extent = extent union {object}, intent = [intent intersection {object}']
-                extent = extent  | {obj}
+                extent = extent  | {obj} 
+                #extent = extent  | set(ks.extent(obj_intent))
                 intent = intent & obj_intent
             # else add object to extent
             else:
@@ -662,9 +674,21 @@ class FCAPathSystem2Way(FCAPathSystemDF):
 class FreqLexiSeriateSystem(FCASystemDF):
     
     
-    def __init__(self, data):
+    def __init__(self, data, refill=False, refiller=None):
+        #import pdb
         self.data = data
-        self.factory = FreqLexiSeriateSystem
+        #self.factory = FreqLexiSeriateSystem
+        self.refiller = refiller
+        if refill: 
+            #pdb.set_trace()
+            if not refiller:
+                self.refiller = sortseriate.Refiller()
+                self.refiller.fit(data.values)
+            self.factory = lambda data: self.factory_class()(data, refill=True, refiller=self.refiller)
+        else:
+            self.factory = self.factory_class()
+    
+    def factory_class(self): return FreqLexiSeriateSystem
     
     def get_conceptchain(self):
         """
@@ -677,17 +701,104 @@ class FreqLexiSeriateSystem(FCASystemDF):
         return cc
      
     def preseriate(self):
-        return sortseriate.FreqLexiSeriation()
+        return sortseriate.FreqLexiSeriation(refiller=self.refiller)
 
 
 class ConfLexiSeriateSystem(FreqLexiSeriateSystem):
     
-    def __init__(self, data):
-        self.data = data
-        self.factory = ConfLexiSeriateSystem
+    #def __init__(self, data):
+    #    self.data = data
+    #    self.factory = ConfLexiSeriateSystem
+    
+    def factory_class(self): return ConfLexiSeriateSystem
     
     def preseriate(self):
-        return sortseriate.FreqLexiSeriation(preseriate=sortseriate.Conf2DSeriation)
+        return sortseriate.FreqLexiSeriation(preseriate=sortseriate.Conf2DSeriation, refiller=self.refiller)
+
+
+
+class LexiCCTransformer(sk.TransformerMixin):
+    """
+    An alternative sklearn style way to generate concept chains.
+    fit(), transform() split should work well with fit(reduced), transform(original)
+    """
+    
+    def __init__(self, refiller=None, transform="CL"):
+        """
+        Transform: CL (Conformism-Lexi), FL (Frequency-Lexi)
+        """
+        if transform == "CL":
+            self.fls = sortseriate.FreqLexiSeriation(preseriate=sortseriate.Conf2DSeriation, refiller=refiller)
+        elif transform == "FL":
+            self.fls = sortseriate.FreqLexiSeriation(refiller=refiller)
+            
+       
+    def fit(self, X):
+        """
+        X should be pandas DataFrame
+        """
+        self.fls.fit(X.values)
+        return self
+        
+   
+    def transform(self, X):
+        """
+        X should be pandas DataFrame
+        """
+        cc = ConceptChain(X.index[self.fls.row_i], FCASystemDF(X)) #ConceptChain takes a kernel system so FCASystemDF is good enough
+        return cc
+        
+    
+class LexiSystem(FCASystemDF):
+    """
+    A new style FL, CL seriate system
+    Has own methods to get cc and to get cc cover
+    """    
+    
+      
+    def __init__(self, data, transform = "CL", refill=False, refiller=None):
+        #import pdb
+        self.data = data
+        self.refiller = refiller
+        if refill and not refiller:
+            self.refiller = sortseriate.Refiller()
+            self.refiller.fit(data.values)
+        self.transformer =  LexiCCTransformer(refiller=self.refiller, transform=transform)
+                
+    
+    def get_conceptchain(self):
+        """
+        Get the best conceptchain. 
+        """
+        return self.transformer.fit_transform(self.data)
+     
+    
+    def conceptchaincover(self, uncovered=0.1, max_cc=20):
+        """
+        Returns a set of concept chains covering the data and a list of 
+        corresponding ratios of data table left uncovered.
+  
+        Uncovered is the maximal allowed ratio of uncovered 1-s.
+        """
+        arr = self.datacopy()
+        old_sum = arr_sum = self.totalsum(arr)
+        result = []
+        uncovered_list = []
+        while True:
+            self.transformer.fit(arr)
+            cc = self.transformer.transform(self.data)
+            result.append(cc)
+            for e, i in cc:
+                # remove concept 1s
+                arr.loc[e, i] = 0
+            new_sum = self.totalsum(arr)
+            uncovered_list.append(new_sum/arr_sum)
+            if (old_sum == new_sum) or (new_sum/arr_sum < uncovered) or len(result) >= max_cc: 
+               # print("Total uncovered: ", self.totalsum(arr), "/", arr_sum)
+                break
+            old_sum = new_sum
+        return result, uncovered_list    
+
 
 
 class KMeansSystem(KernelSystemDF):
@@ -770,7 +881,8 @@ class KMeansSystem(KernelSystemDF):
         
          # If intent, then transpose back
         if is_intent: cc = cc.T
-          
+        
+        #print("chain", extintent, is_intent, cc)
         return cc
   
       
@@ -878,6 +990,40 @@ def main():
             print("Uncovered", u)
 
 
+
+def main_sk_style():
+    andmed = np.array([[0, 0, 1, 1, 1, 1, 0],                   
+                   [0, 0, 0, 1, 1, 1, 1],
+                   [1, 0, 1, 0, 1, 1, 1],
+                   [1, 0, 1, 1, 1, 0, 0],
+                   [1, 1, 1, 0, 1, 0, 0],
+                   [1, 1, 1, 1, 1, 0, 0],
+                   [1, 1, 0, 0, 0, 0, 0],
+                   [1, 1, 1, 0, 0, 0, 0]])
+    #andmed = pd.DataFrame(andmed) # Teeme DataFrameks
+    andmed = pd.DataFrame(andmed, index=['i','ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'], 
+                           columns=['a','b','c', 'd', 'e', 'f', 'g'])
+    #lcct = LexiCCTransformer()
+    #lcct.fit(andmed)
+    #cc = lcct.transform(andmed)
+    ls = LexiSystem(andmed, refill=True)
+    for kontsept in ls.get_conceptchain():
+        ekstent, intent = kontsept
+        print("Ekstent:", ekstent)
+        print("Intent:", intent)
+    ahelate_list, katmata_protsendi_list = ls.conceptchaincover()
+    print(katmata_protsendi_list)
+    for ahel in ahelate_list:
+        print("\nAhel:")
+        for kontsept in ahel:
+            ekstent, intent = kontsept
+            print("Ekstent:", ekstent)
+            print("Intent:", intent)
+
+    
+     
+    
+
 def simple_main():
      andmed = np.array([[0, 0, 1, 1, 1, 1, 0],                   
                    [0, 0, 0, 1, 1, 1, 1],
@@ -944,8 +1090,9 @@ def simple_main_kmeans():
 
 
 if __name__ == "__main__":
-    simple_main_kmeans()
-    #simple_main()
+    #simple_main_kmeans()
+    simple_main()
+    #main_sk_style()
     #main()
 
     

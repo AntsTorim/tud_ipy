@@ -80,7 +80,12 @@ def test_cc():
                    [1, 1, 1, 1, 1, 0, 0],
                    [1, 1, 0, 0, 0, 0, 0],
                    [1, 1, 1, 0, 0, 0, 0]])
-    for System in [krn.FCASystemDF, krn.FCAPathSystemDF]:               
+    for System in [krn.FCASystemDF, 
+                   krn.FCAPathSystemDF, 
+                   krn.FreqLexiSeriateSystem, 
+                   krn.ConfLexiSeriateSystem,
+                   lambda data: krn.FreqLexiSeriateSystem(data, refill=True),
+                   lambda data: krn.ConfLexiSeriateSystem(data, refill=True)]:               
         ks = System(pd.DataFrame(bin_slr))  
         ccc = ks.conceptchaincover()
         assert ccc[0][0].area() > 15
@@ -96,7 +101,23 @@ def test_cc():
     assert ks.conceptdist(cr, cr1) == 4*2
     
     
-
+def test_ConceptChain():
+    bin_slr = np.array([[0, 0, 1, 1, 1, 1, 0],                   
+                   [0, 0, 0, 1, 1, 1, 1],
+                   [1, 0, 1, 0, 1, 1, 1],
+                   [1, 0, 1, 1, 1, 0, 0],
+                   [1, 1, 1, 0, 1, 0, 0],
+                   [1, 1, 1, 1, 1, 0, 0],
+                   [1, 1, 0, 0, 0, 0, 0],
+                   [1, 1, 1, 0, 0, 0, 0]])
+    ks = krn.FCASystemDF(pd.DataFrame(bin_slr))  
+    cc = krn.ConceptChain([1, 2, 3, 6], ks)
+    assert len(cc) == 3
+    assert [(len(e), len(i)) for e, i in cc] == [(1,4), (2,3), (3,1)]
+    ccT = krn.ConceptChain.intent_init([1, 2, 3, 6], ks)
+    assert len(ccT) == 3
+    assert [(len(e), len(i)) for e, i in ccT] == [(4,1), (3,2), (1,3)]
+    #assert ccT.intent_labels() == [1, 2, 3, 6]
 
 
 @given(st.integers(), st.integers())
@@ -114,3 +135,6 @@ def test_answer():
 
 def test_answer2(some_list):
     assert len(some_list) == 5
+
+#if __name__ == "__main__":
+#    test_cc()
