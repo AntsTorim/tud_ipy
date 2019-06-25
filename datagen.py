@@ -12,9 +12,9 @@ from kernel_fca_oo import ConceptChain, FCASystemDF
 def make_test_results(n_samples=100, 
                       n_tests=20, 
                       n_aspects=3,
-                      aspect_range = 400,
-                      sample_aspect0=-600,
-                      test_aspect0=-1200):
+                      aspect_range = 800,
+                      sample_aspect0=-1200,
+                      test_aspect0=-2400):
      """
      Generate a n_samples*n_tests binary data table. Samples and deatures have aspect strengths.
      Table is filled by comparing sample aspect strengths against test
@@ -86,6 +86,7 @@ class MockSkillTestSystem(FCASystemDF):
             self.data = DataFrame(X)
             self.Y_samples = Y_samples
             self.Y_tests = Y_tests
+            self.use_samples = use_samples
   
                 
         def conceptchaincover(self, uncovered=0.1, max_cc=20):
@@ -97,12 +98,20 @@ class MockSkillTestSystem(FCASystemDF):
             arr_sum = self.totalsum(arr)
             result = []
             uncovered_list = []
-            aspect_i = range(len(self.Y_samples[0]))
+            if self.use_samples:
+                Y = self.Y_samples
+            else:
+                Y = self.Y_tests
+            aspect_i = range(len(Y[0])) 
+            #aspect_i = range(len(self.Y_samples[0])) 
             for i in aspect_i:
-                cc_seqtuple = [(max(s), n) for n, s in enumerate(self.Y_samples) if s.index(max(s))==i]
+                cc_seqtuple = [(max(s), n) for n, s in enumerate(Y) if s.index(max(s))==i]
                 #print("sorted_inf", sorted(cc_seqtuple, reverse=True))
-                cc_seq = [n for _, n in sorted(cc_seqtuple, reverse=True)]
-                cc = ConceptChain(cc_seq, self)
+                cc_seq = [n for _, n in sorted(cc_seqtuple, reverse=self.use_samples)]
+                if self.use_samples:
+                    cc = ConceptChain(cc_seq, self)
+                else:
+                    cc = ConceptChain.intent_init(cc_seq, self)
                 result.append(cc)
                 for (e, i) in cc:
                     arr.loc[e, i] = 0
@@ -119,11 +128,14 @@ if __name__ == "__main__":
     print(X)
     print(Ys)
     print(Yt)
-    msts = MockSkillTestSystem(X, Ys, Yt)
-    ccc, uc = msts.conceptchaincover()
-    print(uc)
-    for cc in ccc:
-        print(cc)
+    ms = MockSkillTestSystem(X, Ys, Yt)
+    msts = MockSkillTestSystem(X, Ys, Yt, use_samples=False)
+    for s in [ms, msts]:
+        print("use samples:", s.use_samples)
+        ccc, uc = s.conceptchaincover()
+        print(uc)
+        for cc in ccc:
+            print(cc)
     """
     for i in range(20):
         s = rnd_aspects(3, 400, -600)

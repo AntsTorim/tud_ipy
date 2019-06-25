@@ -366,7 +366,8 @@ class ConceptChain(list):
         result = copy.deepcopy(self)
         result.clear()
         for e, i in self:
-            result.append((i, e))
+            #result.append((i, e))
+            result.insert(0, (i, e))
         return result
 
     @property

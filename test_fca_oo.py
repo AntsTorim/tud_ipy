@@ -116,7 +116,7 @@ def test_ConceptChain():
     assert [(len(e), len(i)) for e, i in cc] == [(1,4), (2,3), (6,1)]
     ccT = krn.ConceptChain.intent_init([1, 2, 3, 6], ks)
     assert len(ccT) == 3
-    assert [(len(e), len(i)) for e, i in ccT] == [(4,2), (3,3), (1,5)]
+    assert [(len(e), len(i)) for e, i in ccT] == [(1,5), (3,3), (4,2)]
     #assert ccT.intent_labels() == [1, 2, 3, 6]
 
 
