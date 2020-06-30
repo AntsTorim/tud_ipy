@@ -784,6 +784,25 @@ class LexiCCTransformer(sk.TransformerMixin):
         return cc
         
     
+class Lexi2CCTransformer(LexiCCTransformer):
+    """
+    Adds second lexicographic sort (instead of refill) 
+    while transforming full data
+    """
+    
+    
+    def transform(self, X):
+        """
+        X should be pandas DataFrame
+        """
+        lis = sortseriate.LexiIterSeriation()
+        lis.fit(self.fls.transform(X.values))
+        row_i = self.fls.row_i[lis.row_i]
+        cc = ConceptChain(X.index[row_i], FCASystemDF(X)) #ConceptChain takes a kernel system so FCASystemDF is good enough
+        return cc
+    
+    
+    
 class LexiSystem(FCASystemDF):
     """
     A new style FL, CL seriate system
@@ -791,14 +810,17 @@ class LexiSystem(FCASystemDF):
     """    
     
       
-    def __init__(self, data, transform = "CL", refill=False, refiller=None):
+    def __init__(self, data, transform = "CL", full_lexi=True, refill=False, refiller=None):
         #import pdb
         self.data = data
         self.refiller = refiller
         if refill and not refiller:
             self.refiller = sortseriate.Refiller()
             self.refiller.fit(data.values)
-        self.transformer =  LexiCCTransformer(refiller=self.refiller, transform=transform)
+        if full_lexi:
+            self.transformer =  Lexi2CCTransformer(refiller=self.refiller, transform=transform)
+        else:
+            self.transformer =  LexiCCTransformer(refiller=self.refiller, transform=transform)
                 
     
     def get_conceptchain(self):
@@ -808,32 +830,82 @@ class LexiSystem(FCASystemDF):
         return self.transformer.fit_transform(self.data)
      
     
-    def conceptchaincover(self, uncovered=0.1, max_cc=20):
+    def conceptchaincover(self, uncovered=0.1, max_cc=20, min_cost=False):
         """
         Returns a set of concept chains covering the data and a list of 
         corresponding ratios of data table left uncovered.
   
         Uncovered is the maximal allowed ratio of uncovered 1-s.
+        min_cost sets the cost regularization cutoff
+        """
+        #arr = self.datacopy()
+        #old_sum = arr_sum = self.totalsum(arr)
+        result = []
+        uncovered_list = []
+        if min_cost:
+            l = min(self.data.shape)
+            c_min = 1.0
+            k_min = 0
+        #while True:
+        for cc, u in self.gen_conceptchaincover():
+           # self.transformer.fit(arr)
+           # cc = self.transformer.transform(self.data)
+            result.append(cc)
+            uncovered_list.append(u)
+            #for e, i in cc:
+                # remove concept 1s
+             #   arr.loc[e, i] = 0
+           # new_sum = self.totalsum(arr)
+           # uncovered_list.append(new_sum/arr_sum)
+            k = len(result)
+            if min_cost:
+                kl = (k/l)**2 
+                if kl >= c_min:
+                    return result[:k_min], uncovered_list[:k_min]
+                elif (kl + u**2) < c_min:
+                    c_min = kl + u**2
+                    k_min = len(result)
+            elif (u < uncovered) or len(result) >= max_cc: 
+               # print("Total uncovered: ", self.totalsum(arr), "/", arr_sum)
+                break
+            #old_sum = new_sum
+        return result, uncovered_list    
+
+
+    def gen_conceptchaincover(self):
+        """
+        Yields pairs of concept chains and uncovered ratios.
+  
         """
         arr = self.datacopy()
         old_sum = arr_sum = self.totalsum(arr)
-        result = []
-        uncovered_list = []
         while True:
-            self.transformer.fit(arr)
-            cc = self.transformer.transform(self.data)
-            result.append(cc)
+            cc = self.chain_from_array(arr) 
             for e, i in cc:
                 # remove concept 1s
                 arr.loc[e, i] = 0
             new_sum = self.totalsum(arr)
-            uncovered_list.append(new_sum/arr_sum)
-            if (old_sum == new_sum) or (new_sum/arr_sum < uncovered) or len(result) >= max_cc: 
+            u = new_sum/arr_sum
+            yield cc, u
+            if (old_sum == new_sum) or new_sum == 0: 
                # print("Total uncovered: ", self.totalsum(arr), "/", arr_sum)
                 break
             old_sum = new_sum
-        return result, uncovered_list    
+        
 
+    def chain_from_array(self, arr):
+        """ Get the best chain from (reduced) array"""
+        self.transformer.fit(arr)
+        return self.transformer.transform(self.data)
+        
+
+
+class Lexi2System(LexiSystem):
+    """
+    Adds second phase seriation on full array
+    """
+    
+    pass
 
 
 class KMeansSystem(KernelSystemDF):
@@ -1123,10 +1195,34 @@ def simple_main_kmeans():
          print("Katmata:", katmata)
              
 
+def simple_lexi():
+     andmed = np.array([[0, 0, 1, 1, 1, 1, 0],                   
+                   [0, 0, 0, 1, 1, 1, 1],
+                   [1, 0, 1, 0, 1, 1, 1],
+                   [1, 0, 1, 1, 1, 0, 0],
+                   [1, 1, 1, 0, 1, 0, 0],
+                   [1, 1, 1, 1, 1, 0, 0],
+                   [1, 1, 0, 0, 0, 0, 0],
+                   [1, 1, 1, 0, 0, 0, 0]])
+
+     andmed = pd.DataFrame(andmed, index=['i','ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'], 
+                           columns=['a','b','c', 'd', 'e', 'f', 'g'])
+     katte_systeem = Lexi2System(andmed)
+            
+     # Jalutame katte elemendid ykshaaval labi
+
+     for ahel, u in katte_systeem.gen_conceptchaincover():
+         print("\nAhel, katmata %f:" % u)
+         for kontsept in ahel:
+             ekstent, intent = kontsept
+             print("Ekstent:", ekstent)
+             print("Intent:", intent)
+
 
 if __name__ == "__main__":
+    simple_lexi()
     #simple_main_kmeans()
-    simple_main()
+    #simple_main()
     #main_sk_style()
     #main()
 

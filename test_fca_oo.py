@@ -80,18 +80,35 @@ def test_cc():
                    [1, 1, 1, 1, 1, 0, 0],
                    [1, 1, 0, 0, 0, 0, 0],
                    [1, 1, 1, 0, 0, 0, 0]])
+    bin_three_aspects = np.array([[1, 1, 1, 1, 0, 0, 0, 0],
+                                  [1, 1, 0, 0, 1, 1, 1, 0],
+                                  [1, 1, 0, 0, 0, 0, 0, 1],
+                                  [1, 0, 0, 0, 0, 0, 0, 0],
+                                  [1, 0, 0, 0, 0, 0, 0, 0],
+                                  [0, 1, 0, 0, 1, 1, 1, 0],
+                                  [0, 0, 0, 0, 1, 1, 1, 0],
+                                  [0, 0, 0, 0, 1, 1, 1, 0],
+                                  [0, 0, 0, 0, 1, 1, 1, 0]])
     for System in [krn.FCASystemDF, 
                    krn.FCAPathSystemDF, 
                    krn.FreqLexiSeriateSystem, 
                    krn.ConfLexiSeriateSystem,
+                   krn.LexiSystem,
+                   krn.Lexi2System,
                    lambda data: krn.FreqLexiSeriateSystem(data, refill=True),
                    lambda data: krn.ConfLexiSeriateSystem(data, refill=True)]:               
         ks = System(pd.DataFrame(bin_slr))  
         ccc = ks.conceptchaincover()
         assert ccc[0][0].area() > 15
     #    ks = System(bin_slr)  
-        ccc2 = ks.conceptchaincover_v2()
-        assert ccc2[0][0].area() > 15
+        if not isinstance(ks, krn.LexiSystem):
+            ccc2 = ks.conceptchaincover_v2()
+            assert ccc2[0][0].area() > 15
+        
+        ks2 = System(pd.DataFrame(bin_three_aspects))
+        chainlist, _ = ks2.conceptchaincover(uncovered=0.0)
+        assert 1 < len(chainlist) < 6  # Ideally 3 chains
+        
         
     ks = krn.FCAPathSystemDF(pd.DataFrame(bin_slr))
     cr = ks.conceptrec([])
@@ -99,6 +116,13 @@ def test_cc():
     assert cr.extent == set(range(8))
     cr1 = ks.conceptrec([1])
     assert ks.conceptdist(cr, cr1) == 4*2
+    
+    for System in [krn.LexiSystem, krn.Lexi2System]:
+        ks = System(pd.DataFrame(bin_three_aspects))
+        ccc, _ = ks.conceptchaincover(uncovered=0.0, min_cost=True)
+        assert 0 < len(ccc) < 3 # Test cost minimization
+
+    
     
     
 def test_ConceptChain():
@@ -136,5 +160,6 @@ def test_answer():
 def test_answer2(some_list):
     assert len(some_list) == 5
 
-#if __name__ == "__main__":
-#    test_cc()
+if __name__ == "__main__":
+    pytest.main()
+   
