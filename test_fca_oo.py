@@ -94,7 +94,6 @@ def test_cc():
                    krn.FreqLexiSeriateSystem, 
                    krn.ConfLexiSeriateSystem,
                    krn.LexiSystem,
-                   krn.Lexi2System,
                    lambda data: krn.FreqLexiSeriateSystem(data, refill=True),
                    lambda data: krn.ConfLexiSeriateSystem(data, refill=True)]:               
         ks = System(pd.DataFrame(bin_slr))  
@@ -117,13 +116,23 @@ def test_cc():
     cr1 = ks.conceptrec([1])
     assert ks.conceptdist(cr, cr1) == 4*2
     
-    for System in [krn.LexiSystem, krn.Lexi2System]:
+    for System in [krn.LexiSystem]:
         ks = System(pd.DataFrame(bin_three_aspects))
         ccc, _ = ks.conceptchaincover(uncovered=0.0, min_cost=True)
         assert 0 < len(ccc) < 3 # Test cost minimization
 
-    
-    
+
+
+@given(st_np.arrays(np.int8, (9, 8), elements=bin_int_strat))
+def test_l2_cover_superiority(arr):
+    data = pd.DataFrame(arr)
+    ls = krn.LexiSystem(data, full_lexi=False)
+    lsf = krn.LexiSystem(data, full_lexi=True)
+    ccc, _ = ls.conceptchaincover(uncovered=0.0)
+    ccc_f, _ = lsf.conceptchaincover(uncovered=0.0)
+    assert len(ccc_f) <= len(ccc) #Maybe random superiority?
+
+        
     
 def test_ConceptChain():
     bin_slr = np.array([[0, 0, 1, 1, 1, 1, 0],                   
@@ -144,22 +153,24 @@ def test_ConceptChain():
     #assert ccT.intent_labels() == [1, 2, 3, 6]
 
 
-@given(st.integers(), st.integers())
-def test_ints_are_commutative(x, y):
-    assert x + y == y + x
-    assert x * y == y * x
-    #assert x / y == 1 / (y / x)
-
-@pytest.fixture(scope='function')
-def some_list():
-    return list(range(5))
-
-def test_answer():
-    assert 5 == 5
-
-def test_answer2(some_list):
-    assert len(some_list) == 5
-
+# =============================================================================
+# @given(st.integers(), st.integers())
+# def test_ints_are_commutative(x, y):
+#     assert x + y == y + x
+#     assert x * y == y * x
+#     #assert x / y == 1 / (y / x)
+# 
+# @pytest.fixture(scope='function')
+# def some_list():
+#     return list(range(5))
+# 
+# def test_answer():
+#     assert 5 == 5
+# 
+# def test_answer2(some_list):
+#     assert len(some_list) == 5
+# 
+# =============================================================================
 if __name__ == "__main__":
     pytest.main()
    

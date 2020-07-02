@@ -11,5 +11,7 @@
   "test_sortseriate.py::test_conf2d",
   "test_sortseriate.py::test_liseriate",
   "test_sortseriate.py::test_refill",
-  "test_sortseriate.py::test_FL_seriate"
+  "test_sortseriate.py::test_FL_seriate",
+  "test_fca_oo.py::test_l2_cover_superiority",
+  "test_sortseriate.py::test_connect"
 ]

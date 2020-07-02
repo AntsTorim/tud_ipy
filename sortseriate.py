@@ -196,6 +196,37 @@ class Refiller(sk.TransformerMixin):
         return np.where(to_fill, 1, X)
         
 
+class Connector(sk.TransformerMixin):
+    """
+    Transforms array filling in connecting elements in fitted,
+    that is 1-s t have any uncovered 1s in fitted tables rows and columns.
+    """
+    
+    def fit(self, X):
+        """
+        Sets the original
+        Parameters
+        ----------
+        X : Original np array or pd.DataFrame
+
+        """
+        self.original = np.asarray(X)
+        return self       
+  
+
+    def transform(self, X):
+        """
+        Returns X connected from fitted original.
+        """
+        X = np.asarray(X)
+        assert X.shape == self.original.shape
+        connected = self.original * X.any(axis=0)
+        connected = connected * X.any(axis=1)[np.newaxis, :].T
+        return connected
+        
+
+
+
 if __name__ == "__main__":
     a = np.array([[0, 1, 0, 0, 1],
                   [1, 1, 1, 0, 1],

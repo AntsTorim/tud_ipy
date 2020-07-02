@@ -800,7 +800,37 @@ class Lexi2CCTransformer(LexiCCTransformer):
         row_i = self.fls.row_i[lis.row_i]
         cc = ConceptChain(X.index[row_i], FCASystemDF(X)) #ConceptChain takes a kernel system so FCASystemDF is good enough
         return cc
+
+
+class LexiConCCTransformer(LexiCCTransformer):
+    """
+    Adds a connection transformation before second lexicographic sort
+    (not full matrix, only needed 1s)
+    """
     
+    def fit(self, X):
+        """
+        X should be pandas DataFrame
+        """
+        self.reduced = X.values
+        self.fls.fit(self.reduced)
+        return self
+    
+    def transform(self, X):
+        """
+        X should be pandas DataFrame
+        """
+        full = X.values
+        con = sortseriate.Connector()
+        con.fit(full)
+        C = con.transform(self.reduced)
+        lis = sortseriate.LexiIterSeriation()
+        lis.fit(self.fls.transform(C))
+        row_i = self.fls.row_i[lis.row_i]
+        cc = ConceptChain(X.index[row_i], FCASystemDF(X)) #ConceptChain takes a kernel system so FCASystemDF is good enough
+        return cc
+        
+        
     
     
 class LexiSystem(FCASystemDF):
@@ -818,7 +848,7 @@ class LexiSystem(FCASystemDF):
             self.refiller = sortseriate.Refiller()
             self.refiller.fit(data.values)
         if full_lexi:
-            self.transformer =  Lexi2CCTransformer(refiller=self.refiller, transform=transform)
+            self.transformer =  LexiConCCTransformer(refiller=self.refiller, transform=transform)
         else:
             self.transformer =  LexiCCTransformer(refiller=self.refiller, transform=transform)
                 
@@ -900,12 +930,6 @@ class LexiSystem(FCASystemDF):
         
 
 
-class Lexi2System(LexiSystem):
-    """
-    Adds second phase seriation on full array
-    """
-    
-    pass
 
 
 class KMeansSystem(KernelSystemDF):
@@ -1196,18 +1220,38 @@ def simple_main_kmeans():
              
 
 def simple_lexi():
-     andmed = np.array([[0, 0, 1, 1, 1, 1, 0],                   
-                   [0, 0, 0, 1, 1, 1, 1],
-                   [1, 0, 1, 0, 1, 1, 1],
-                   [1, 0, 1, 1, 1, 0, 0],
-                   [1, 1, 1, 0, 1, 0, 0],
-                   [1, 1, 1, 1, 1, 0, 0],
-                   [1, 1, 0, 0, 0, 0, 0],
-                   [1, 1, 1, 0, 0, 0, 0]])
+     r = np.array([[0, 0, 1, 1],                   
+                   [0, 0, 0, 0],
+                   [1, 0, 0, 0],
+                   [1, 0, 0, 0]])
+     f = np.array([[1, 1, 1, 1],                   
+                   [1, 1, 0, 0],
+                   [1, 0, 0, 0],
+                   [1, 0, 0, 0]])
+     ri = range(4)
+     ci = ["a", "b", "c", "d"]
+     lt =  Lexi2CCTransformer(transform="CL") # ok
+     r = pd.DataFrame(r, index=ri, columns=ci)
+     lt.fit(r)
+     f = pd.DataFrame(f, index=ri, columns=ci)
+     print(lt.transform(f))
+     print(r)
+     print(f)
+     
+     bin_three_aspects = np.array([[1, 1, 1, 1, 0, 0, 0, 0],
+                                  [1, 1, 0, 0, 1, 1, 1, 0],
+                                  [1, 1, 0, 0, 0, 0, 0, 1],
+                                  [1, 0, 0, 0, 0, 0, 0, 0],
+                                  [1, 0, 0, 0, 0, 0, 0, 0],
+                                  [0, 1, 0, 0, 1, 1, 1, 0],
+                                  [0, 0, 0, 0, 1, 1, 1, 0],
+                                  [0, 0, 0, 0, 1, 1, 1, 0]])
+     
 
-     andmed = pd.DataFrame(andmed, index=['i','ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'], 
-                           columns=['a','b','c', 'd', 'e', 'f', 'g'])
-     katte_systeem = Lexi2System(andmed)
+     andmed = pd.DataFrame(bin_three_aspects.T, index=range(8), 
+                           columns=['a','b','c', 'd', 'e', 'f', 'g', 'h'])
+     print(lt.fit_transform(andmed))
+     katte_systeem = LexiSystem(andmed)
             
      # Jalutame katte elemendid ykshaaval labi
 
@@ -1219,8 +1263,28 @@ def simple_lexi():
              print("Intent:", intent)
 
 
+def lexi2_trouble():
+    a = np.array([[1, 0, 1, 0, 1, 1],
+               [0, 1, 1, 1, 1, 1],
+               [1, 0, 0, 1, 1, 1],
+               [1, 1, 1, 1, 1, 1],
+               [1, 1, 0, 1, 1, 1],
+               [1, 1, 1, 1, 1, 1],
+               [1, 0, 1, 1, 1, 1]])
+    andmed = pd.DataFrame(a)
+    katte_systeem = LexiSystem(andmed, transform="CL", full_lexi=True)
+    for ahel, u in katte_systeem.gen_conceptchaincover():
+        print("\nAhel, katmata %f:" % u)
+        for kontsept in ahel:
+            ekstent, intent = kontsept
+            print("Ekstent:", ekstent)
+            print("Intent:", intent)
+     
+    
+
 if __name__ == "__main__":
-    simple_lexi()
+    lexi2_trouble()
+    #simple_lexi()
     #simple_main_kmeans()
     #simple_main()
     #main_sk_style()

@@ -101,6 +101,21 @@ def test_refill():
                          [1, 1, 0]])
     
 
+def test_connect():
+    a_0 = np.array([[1, 1, 0],
+                    [0, 0, 1],
+                    [1, 0, 1]])
+    a = np.array([[1, 0, 0],
+                  [0, 0, 0],
+                  [0, 0, 1]])
+    c = Connector()
+    c.fit(a_0)
+    connected = c.transform(a)
+    expected = np.array([[1, 0, 0],
+                         [0, 0, 0],
+                         [1, 0, 1]])
+    assert (connected == expected).all()
+
 
 def test_FL_seriate():
     a = np.array([[0, 0, 0, 0],
@@ -139,4 +154,5 @@ def test_FL_seriate():
     
 if __name__ == "__main__":
     pytest.main(args=["-v"])
+    #pytest.main()
     #test_FL_seriate()
