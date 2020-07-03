@@ -1,3 +1,4 @@
 {
+  "test_fca_oo.py::test_cc": true,
   "test_sortseriate.py::test_something": true
 }

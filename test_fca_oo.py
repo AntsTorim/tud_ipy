@@ -94,6 +94,7 @@ def test_cc():
                    krn.FreqLexiSeriateSystem, 
                    krn.ConfLexiSeriateSystem,
                    krn.LexiSystem,
+                   krn.LexiTSystem,
                    lambda data: krn.FreqLexiSeriateSystem(data, refill=True),
                    lambda data: krn.ConfLexiSeriateSystem(data, refill=True)]:               
         ks = System(pd.DataFrame(bin_slr))  
@@ -116,14 +117,14 @@ def test_cc():
     cr1 = ks.conceptrec([1])
     assert ks.conceptdist(cr, cr1) == 4*2
     
-    for System in [krn.LexiSystem]:
+    for System in [krn.LexiSystem, krn.LexiTSystem]:
         ks = System(pd.DataFrame(bin_three_aspects))
         ccc, _ = ks.conceptchaincover(uncovered=0.0, min_cost=True)
         assert 0 < len(ccc) < 3 # Test cost minimization
 
 
 
-@given(st_np.arrays(np.int8, (9, 8), elements=bin_int_strat))
+@given(st_np.arrays(np.int8, (5, 4), elements=bin_int_strat))
 def test_l2_cover_superiority(arr):
     data = pd.DataFrame(arr)
     ls = krn.LexiSystem(data, full_lexi=False)
@@ -151,6 +152,10 @@ def test_ConceptChain():
     assert len(ccT) == 3
     assert [(len(e), len(i)) for e, i in ccT] == [(1,5), (3,3), (4,2)]
     #assert ccT.intent_labels() == [1, 2, 3, 6]
+    assert cc.cover(bin_slr) == 11
+    bin_slr[2, 5] = 0
+    assert cc.cover(bin_slr) == 10
+    
 
 
 # =============================================================================

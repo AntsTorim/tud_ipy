@@ -373,6 +373,17 @@ class ConceptChain(list):
     @property
     def T(self): return self.transpose()
     
+    
+    def cover(self, arr):
+        """How many 1s of arr does the chain cover?"""
+        if isinstance(arr, pd.DataFrame):
+            mask = arr.copy()
+            mask[:] = 0
+        else:
+            mask = pd.DataFrame(np.zeros(arr.shape))
+        for e, i in self:
+            mask.loc[e, i] = 1
+        return (mask.values * np.asarray(arr)).sum()
 
 
 class _ConceptChainOld(ConceptChain):
@@ -840,7 +851,7 @@ class LexiSystem(FCASystemDF):
     """    
     
       
-    def __init__(self, data, transform = "CL", full_lexi=True, refill=False, refiller=None):
+    def __init__(self, data, transform = "CL", full_lexi=False, refill=False, refiller=None):
         #import pdb
         self.data = data
         self.refiller = refiller
@@ -868,25 +879,15 @@ class LexiSystem(FCASystemDF):
         Uncovered is the maximal allowed ratio of uncovered 1-s.
         min_cost sets the cost regularization cutoff
         """
-        #arr = self.datacopy()
-        #old_sum = arr_sum = self.totalsum(arr)
         result = []
         uncovered_list = []
         if min_cost:
             l = min(self.data.shape)
             c_min = 1.0
             k_min = 0
-        #while True:
         for cc, u in self.gen_conceptchaincover():
-           # self.transformer.fit(arr)
-           # cc = self.transformer.transform(self.data)
             result.append(cc)
             uncovered_list.append(u)
-            #for e, i in cc:
-                # remove concept 1s
-             #   arr.loc[e, i] = 0
-           # new_sum = self.totalsum(arr)
-           # uncovered_list.append(new_sum/arr_sum)
             k = len(result)
             if min_cost:
                 kl = (k/l)**2 
@@ -897,8 +898,7 @@ class LexiSystem(FCASystemDF):
                     k_min = len(result)
             elif (u < uncovered) or len(result) >= max_cc: 
                # print("Total uncovered: ", self.totalsum(arr), "/", arr_sum)
-                break
-            #old_sum = new_sum
+                break            
         return result, uncovered_list    
 
 
@@ -929,6 +929,27 @@ class LexiSystem(FCASystemDF):
         return self.transformer.transform(self.data)
         
 
+class LexiTSystem(LexiSystem):
+    """
+    Choose chain with highest cover from original and transposed array.
+    """
+    
+    
+    def chain_from_array(self, arr):
+        """ Also transpose arr and then pick the chain with best cover """
+        sup_chain = super().chain_from_array
+        cc_1 = sup_chain(arr)
+        self.data = self.data.T # self.data should be transposed also
+        cc_2 = sup_chain(arr.T).T 
+        self.data = self.data.T
+        if cc_1.cover(arr) >= cc_2.cover(arr):
+            #raise ValueError() #dataframe and other indices! CC
+            return cc_1
+        else:
+         #   print("Second!")
+            #raise ValueError()
+            
+            return cc_2
 
 
 
@@ -1248,10 +1269,11 @@ def simple_lexi():
                                   [0, 0, 0, 0, 1, 1, 1, 0]])
      
 
-     andmed = pd.DataFrame(bin_three_aspects.T, index=range(8), 
+     andmed = pd.DataFrame(bin_three_aspects, index=range(8), 
                            columns=['a','b','c', 'd', 'e', 'f', 'g', 'h'])
      print(lt.fit_transform(andmed))
-     katte_systeem = LexiSystem(andmed)
+     katte_systeem = LexiTSystem(andmed)
+     #katte_systeem = LexiSystem(andmed) - halvem!
             
      # Jalutame katte elemendid ykshaaval labi
 
@@ -1283,8 +1305,8 @@ def lexi2_trouble():
     
 
 if __name__ == "__main__":
-    lexi2_trouble()
-    #simple_lexi()
+    #lexi2_trouble()
+    simple_lexi()
     #simple_main_kmeans()
     #simple_main()
     #main_sk_style()
