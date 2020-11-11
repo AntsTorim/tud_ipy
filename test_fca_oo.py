@@ -134,6 +134,18 @@ def test_l2_cover_superiority(arr):
     assert len(ccc_f) <= len(ccc) #Maybe random superiority?
 
         
+@given(st_np.arrays(np.int8, (8, 6), elements=bin_int_strat),
+       st_np.arrays(np.int8, (8, 6), elements=bin_int_strat))
+def test_transpose_system_cover_superiority(data, arr_base):
+    arr = pd.DataFrame(data * arr_base) # arr 1-s will be subset of data
+    data = pd.DataFrame(data)
+    ls = krn.LexiSystem(data, full_lexi=False)
+    lst = krn.LexiTSystem(data, full_lexi=False)
+    cc = ls.chain_from_array(arr)
+    cct = lst.chain_from_array(arr)
+    assert cc.cover(arr) <= cct.cover(arr)
+
+
     
 def test_ConceptChain():
     bin_slr = np.array([[0, 0, 1, 1, 1, 1, 0],                   
@@ -152,9 +164,18 @@ def test_ConceptChain():
     assert len(ccT) == 3
     assert [(len(e), len(i)) for e, i in ccT] == [(1,5), (3,3), (4,2)]
     #assert ccT.intent_labels() == [1, 2, 3, 6]
-    assert cc.cover(bin_slr) == 11
-    bin_slr[2, 5] = 0
-    assert cc.cover(bin_slr) == 10
+    df_bin_slr = pd.DataFrame(bin_slr.copy())
+    for a in [df_bin_slr, bin_slr]:
+        expected = 11
+        assert cc.cover(a) == expected
+        for r, c in [(2, 5), (1, 4), (1, 3), (2, 4), (3, 4), (4, 4), (5, 4)]:
+            try:
+                a.loc[r, c] = 0 # Dataframe
+            except:
+                a[r, c] = 0 #array
+            expected = expected - 1
+            assert cc.cover(a) == expected
+
     
 
 

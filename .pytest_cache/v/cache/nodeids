@@ -13,5 +13,9 @@
   "test_sortseriate.py::test_refill",
   "test_sortseriate.py::test_FL_seriate",
   "test_fca_oo.py::test_l2_cover_superiority",
-  "test_sortseriate.py::test_connect"
+  "test_sortseriate.py::test_connect",
+  "test_fca_oo.py::test_transpose_cover_superiority",
+  "test_fca_oo.py::test_transpose_system_cover_superiority",
+  "test_sortseriate.py::test_minus",
+  "test_sortseriate.py::test_minus2d"
 ]

@@ -153,6 +153,60 @@ class Conf2DSeriation(sk.TransformerMixin):
         return X[self.row_i][:, self.col_i]
     
 
+
+class MinusSeriation(ConfSeriation):
+    """
+    Seriate by minus technique, rows only
+    """
+    
+    def fit_gen(self, X):
+        ConfSeriation.fit(self, X)
+        weights = np.ma.MaskedArray(self.weight_)
+        while weights.count() > 0:
+            min_i = np.argmin(weights)
+            min_w = weights[min_i]
+            weights = weights - np.add.reduce(X * X[min_i], axis=1)
+            weights[min_i] = np.ma.masked
+            yield min_i, min_w
+  
+      
+    def fit(self, X):
+        """
+        X must be a binary data table
+        """
+        sortindices = []
+        weights = []
+        for i, w in self.fit_gen(X):
+            sortindices.insert(0, i)
+            weights.insert(0, w)
+        self.sortindices_ = np.array(sortindices)    
+        self.weights_ = np.array(weights)
+        return self
+
+
+
+class Minus2DSeriation(Conf2DSeriation):
+    """
+    Seriate by minus technique, rows and columns
+    """
+    
+       
+    def fit(self, X):
+        """
+        X must be a binary data table
+        """
+        ms = MinusSeriation()
+        ms_t = MinusSeriation()
+        ms.fit(X)
+        ms_t.fit(X.T)
+        self.row_i = ms.sortindices_
+        self.row_w = ms.weights_
+        self.col_i = ms_t.sortindices_
+        self.col_w = ms_t.weights_
+        return self
+
+
+
 class Refiller(sk.TransformerMixin):
     """
     Refill the streaks of ones in original up to the ones in a new array
@@ -239,6 +293,7 @@ if __name__ == "__main__":
                   [0, 0, 0, 1, 1],
                   [0, 0, 0, 1, 1]])
     lis_c = LexiIterSeriation(refiller=r).fit_transform(c)
+    
     print(lis_c)
     """
     X = np.array([[1, 1, 0, 1, 1],
@@ -255,6 +310,8 @@ if __name__ == "__main__":
                   [0, 0, 1, 1, 1, 0]])
     """
     X = rnd.randint(2, size=(12,11))
+    mt = MinusSeriation().fit(X)
+    print(mt.transform(X))
     """
     X_new = None
     transposed = False

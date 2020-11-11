@@ -1,4 +1,4 @@
 {
-  "test_fca_oo.py::test_cc": true,
+  "test_fca_oo.py::test_transpose_cover_superiority": true,
   "test_sortseriate.py::test_something": true
 }

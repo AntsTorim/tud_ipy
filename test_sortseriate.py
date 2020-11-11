@@ -31,6 +31,28 @@ def test_conf():
     assert (conf_a == expected).all()
     
 
+def test_minus():
+    a = np.array([[1, 1, 0, 0, 0],
+                  [1, 1, 0, 0, 0],
+                  [0, 0, 0, 0, 1],
+                  [0, 0, 1, 1, 0],
+                  [0, 0, 0, 1, 1],
+                  [0, 0, 1, 1, 0],
+                  [1, 1, 0, 0, 0]])
+    ms = MinusSeriation()
+    min_a = ms.fit_transform(a)
+    expected = np.array([[1, 1, 0, 0, 0],
+                         [1, 1, 0, 0, 0],
+                         [1, 1, 0, 0, 0],
+                         [0, 0, 1, 1, 0],
+                         [0, 0, 1, 1, 0],
+                         [0, 0, 0, 1, 1],
+                         [0, 0, 0, 0, 1]])
+    expected_w = np.array([2, 4, 6, 2, 4, 4, 2])
+    assert (min_a == expected).all()
+    assert (np.array(ms.weights_) == expected_w).all()
+
+
 def test_conf2d():
     a = np.array([[0, 0, 1, 0, 1],
                   [1, 1, 0, 1, 0],
@@ -41,6 +63,27 @@ def test_conf2d():
                          [0, 0, 1, 1, 1]])
     assert (conf_a == expected).all()
 
+
+def test_minus2d():
+    a = np.array([[1, 0, 0, 0, 1],
+                  [1, 0, 0, 0, 1],
+                  [0, 1, 0, 0, 0],
+                  [0, 0, 1, 1, 0],
+                  [1, 0, 0, 0, 1],
+                  [0, 0, 1, 1, 0]])
+    ms = Minus2DSeriation()
+    min_a = ms.fit_transform(a)
+    expected = np.array([[1, 1, 0, 0, 0],
+                         [1, 1, 0, 0, 0],
+                         [1, 1, 0, 0, 0],
+                         [0, 0, 1, 1, 0],
+                         [0, 0, 1, 1, 0],
+                         [0, 0, 0, 0, 1]])
+    expected_rw = np.array([2, 4, 6, 2, 4, 1])
+    expected_cw = np.array([3, 6, 2, 4, 1])
+    assert (min_a == expected).all()
+    assert (np.array(ms.row_w) == expected_rw).all()
+    assert (np.array(ms.col_w) == expected_cw).all()
     
 def test_liseriate():
     a = np.array([[0, 1, 0, 0, 1],
@@ -153,6 +196,6 @@ def test_FL_seriate():
     
     
 if __name__ == "__main__":
-    pytest.main(args=["-v"])
+    pytest.main(args=["-vv"])
     #pytest.main()
     #test_FL_seriate()
